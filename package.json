@@ -1,0 +1,9 @@
+{
+  "name": "vertical-limit",
+  "private": true,
+  "type": "module",
+  "description": "Vertical Limit — a tap-to-climb arcade game with a global leaderboard.",
+  "dependencies": {
+    "@netlify/blobs": "^11.1.6"
+  }
+}

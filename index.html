@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vertical Limit</title>
+<meta name="description" content="A tap-to-climb mountain game. Hop from rock to rock, dodge the falling stones, and choose whether to bank your points at base camp or risk them all. Compete on the world leaderboard.">
+<meta name="theme-color" content="#120e0b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vertical Limit">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #17110c;
+  --gold: #ffcf4d;
+  --cream: #fff3d6;
+  --mint: #a7e8a0;
+  --coral: #ff9f80;
+  --panel: #1d1713;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html, body { margin: 0; }
+body {
+  background: transparent;
+  color: var(--cream);
+  font-family: "Fredoka", system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.wrap { width: 100%; max-width: 900px; padding: 10px; box-sizing: border-box; }
+.stage { position: relative; margin: 0 auto; width: 100%; max-width: max(260px, calc((100vh - 120px) * 0.6)); }
+@supports (height: 100dvh) {
+  .stage { max-width: max(260px, calc((100dvh - 120px) * 0.6)); }
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 480 / 800;
+  border-radius: 12px;
+  background: #2a231e;
+  /* soft grounding shadow instead of the old framing bezel, plus a feathered
+     edge so the panel melts into the mountainside rather than floating on it */
+  box-shadow: 0 18px 50px rgba(9,6,4,0.5), 0 0 40px rgba(255,180,110,0.07);
+  -webkit-mask-image: radial-gradient(136% 134% at 50% 50%, #000 91%, transparent 100%);
+  mask-image: radial-gradient(136% 134% at 50% 50%, #000 91%, transparent 100%);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bar { display: flex; gap: 6px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+.bar .spacer { flex: 1; }
+.btn {
+  font-family: "Bangers", Impact, sans-serif;
+  letter-spacing: 1px;
+  font-size: 17px;
+  line-height: 1;
+  padding: 8px 12px 7px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--ink); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn.ghost { background: #2e241c; color: var(--cream); }
+.btn.mint { background: var(--mint); }
+.btn.off { opacity: 0.5; }
+.btn:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
+.modal-back {
+  position: absolute; inset: 0; z-index: 5;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(8,6,4,0.55);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border-radius: 16px;
+}
+.modal-back.open { display: flex; }
+.modal {
+  width: min(92%, 420px); max-height: 88%; overflow: auto; box-sizing: border-box;
+  background: var(--panel);
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  box-shadow: 0 0 0 3px var(--gold), 0 24px 50px rgba(0,0,0,0.6);
+  padding: 18px 18px 16px;
+  animation: pop 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes pop { from { transform: scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal h2 {
+  font-family: "Bangers", Impact, sans-serif; font-weight: 400;
+  font-size: 36px; margin: 0 0 4px; color: var(--gold); letter-spacing: 1px;
+  text-shadow: 3px 3px 0 var(--ink);
+}
+.modal h3 { font-family: "Bangers", Impact, sans-serif; font-weight: 400; font-size: 22px; margin: 16px 0 6px; letter-spacing: 1px; color: var(--cream); }
+.lb { list-style: none; padding: 0; margin: 12px 0; }
+.lb li {
+  display: grid; grid-template-columns: 38px 1fr auto; gap: 8px; align-items: center;
+  padding: 8px 12px; border-radius: 12px; background: #2a211b; margin-bottom: 6px;
+  animation: rise 0.3s both;
+}
+.lb li.me { background: #3f3416; box-shadow: inset 0 0 0 2px var(--gold); }
+.lb li.empty { display: block; text-align: center; opacity: 0.75; }
+.lb .rk { font-family: "Bangers", Impact, sans-serif; font-size: 24px; color: var(--gold); }
+.lb li:nth-child(1) .rk { color: #ffd84d; }
+.lb li:nth-child(2) .rk { color: #d9e2ea; }
+.lb li:nth-child(3) .rk { color: #e3a46b; }
+.lb .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb .sub { display: block; font-size: 12px; font-weight: 400; opacity: 0.6; }
+.lb .pts { font-family: "Bangers", Impact, sans-serif; font-size: 24px; color: var(--mint); letter-spacing: 0.5px; }
+.field {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 17px;
+  padding: 10px 12px; border-radius: 12px; border: 3px solid var(--ink);
+  background: #f6efe1; color: var(--ink);
+}
+.field:focus { outline: 3px solid var(--gold); outline-offset: 1px; }
+.code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px;
+  background: #0f0c0a; padding: 10px; border-radius: 10px; word-break: break-all;
+  border: 2px dashed #5a4a3a; color: var(--gold); user-select: all; -webkit-user-select: all;
+}
+.row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.muted { opacity: 0.75; font-size: 14px; line-height: 1.45; margin: 4px 0; }
+.stats { display: flex; gap: 8px; margin: 10px 0 4px; }
+.stats div { flex: 1; background: #2a211b; border-radius: 12px; padding: 8px; text-align: center; }
+.stats b { display: block; font-family: "Bangers", Impact, sans-serif; font-weight: 400; font-size: 26px; color: var(--mint); }
+.stats span { font-size: 12px; opacity: 0.7; }
+.msg { font-size: 14px; min-height: 20px; margin-top: 8px; }
+.msg.err { color: var(--coral); }
+.msg.ok { color: var(--mint); }
+hr { border: 0; border-top: 2px dashed #3a2e25; margin: 16px 0 4px; }
+@media (max-width: 420px) { .bar { gap: 5px; } .btn { font-size: 15px; padding: 7px 9px 6px; } }
+.hint { margin: 14px 4px 0; font-size: 14px; line-height: 1.55; opacity: 0.72; }
+.hint b { color: var(--gold); font-weight: 600; }
+/* --- wilderness backdrop (fills the laptop sides so the climb sits in a real range) --- */
+#vl-scene{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;
+  background:linear-gradient(180deg,#160f26 0%,#2c2040 18%,#55394f 38%,#9a5e44 55%,#7a4733 68%,#2e1c15 85%,#130c08 100%);}
+#vl-scene>*{position:absolute}
+#vl-scene .sun{top:13%;left:50%;transform:translateX(-50%);width:520px;height:520px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,229,163,.55),rgba(255,181,112,.2) 38%,transparent 66%);filter:blur(2px)}
+#vl-scene .stars{inset:0 0 55% 0;opacity:.85;background-repeat:no-repeat;background-image:
+  radial-gradient(1.5px 1.5px at 7% 22%,#fff6e0 99%,transparent),radial-gradient(1.5px 1.5px at 16% 12%,#fff6e0 99%,transparent),
+  radial-gradient(1.5px 1.5px at 27% 28%,#fff6e0 99%,transparent),radial-gradient(1.5px 1.5px at 73% 18%,#fff6e0 99%,transparent),
+  radial-gradient(1.5px 1.5px at 84% 26%,#fff6e0 99%,transparent),radial-gradient(1.5px 1.5px at 93% 14%,#fff6e0 99%,transparent),
+  radial-gradient(1.5px 1.5px at 40% 9%,#fff6e0 99%,transparent),radial-gradient(1.5px 1.5px at 60% 24%,#fff6e0 99%,transparent)}
+#vl-scene .clouds{top:6%;left:0;right:0;height:36%;opacity:.45;background-repeat:no-repeat;background-image:
+  radial-gradient(90px 22px at 18% 35%,rgba(255,224,190,.55),transparent 72%),
+  radial-gradient(120px 26px at 70% 22%,rgba(255,210,180,.45),transparent 72%),
+  radial-gradient(70px 18px at 88% 44%,rgba(255,224,190,.4),transparent 72%);
+  animation:vlDriftA 75s ease-in-out infinite alternate}
+#vl-scene svg.range{bottom:0;left:50%;transform:translateX(-50%);width:max(1680px,120vw);height:100%;display:block}
+#vl-scene .mist{left:-12%;right:-12%;height:150px;filter:blur(8px);
+  background:linear-gradient(180deg,transparent,rgba(216,198,214,.22),transparent)}
+#vl-scene .mist.m1{top:45%;animation:vlDriftB 60s ease-in-out infinite alternate}
+#vl-scene .mist.m2{top:62%;height:120px;background:linear-gradient(180deg,transparent,rgba(190,170,195,.18),transparent);
+  animation:vlDriftA 68s ease-in-out infinite alternate}
+#vl-scene .vig{inset:0;background:radial-gradient(125% 75% at 50% 6%,transparent 52%,rgba(9,6,4,.5)),linear-gradient(180deg,transparent 58%,rgba(9,6,4,.6))}
+@keyframes vlDriftA{from{transform:translateX(-3%)}to{transform:translateX(3%)}}
+@keyframes vlDriftB{from{transform:translateX(2.5%)}to{transform:translateX(-2.5%)}}
+@media (prefers-reduced-motion:reduce){#vl-scene *{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="vl-scene" aria-hidden="true">
+  <div class="sun"></div>
+  <div class="stars"></div>
+  <div class="clouds"></div>
+  <div class="mist m1"></div>
+  <svg class="range" viewBox="0 0 1680 960" preserveAspectRatio="xMidYMax slice">
+    <g opacity="0.6"><path fill="#7d6894" d="M0 400 L120 150 L250 380 L400 130 L560 410 L780 330 L900 380 L1120 410 L1280 130 L1430 380 L1560 160 L1680 400 L1680 960 L0 960 Z"/></g>
+    <g><path fill="#56425f" d="M0 560 L140 290 L300 540 L470 240 L560 560 L780 460 L900 520 L1120 560 L1210 250 L1380 540 L1540 290 L1680 560 L1680 960 L0 960 Z"/>
+      <path fill="#f2ecde" d="M470 240 L430 322 L462 304 L488 352 L512 300 L544 322 Z"/>
+      <path fill="#f2ecde" d="M1210 250 L1170 332 L1202 314 L1228 362 L1252 310 L1284 332 Z"/>
+      <path fill="#f2ecde" d="M140 290 L102 366 L134 348 L158 394 L182 344 L214 366 Z"/>
+      <path fill="#f2ecde" d="M1540 290 L1502 366 L1534 348 L1558 394 L1582 344 L1614 366 Z"/></g>
+    <g><path fill="#31221d" d="M0 720 L160 450 L360 700 L520 480 L560 560 L780 720 L900 580 L1120 560 L1160 560 L1360 720 L1520 460 L1680 720 L1680 960 L0 960 Z"/>
+      <path fill="#f2ecde" d="M160 450 L124 522 L156 504 L178 548 L200 500 L232 522 Z"/>
+      <path fill="#f2ecde" d="M520 480 L484 552 L514 534 L536 578 L558 532 L588 552 Z"/>
+      <path fill="#f2ecde" d="M1520 460 L1484 532 L1516 514 L1538 558 L1560 512 L1592 532 Z"/></g>
+    <g opacity="0.5"><path fill="none" stroke="#ffcf87" stroke-width="2.5" d="M0 720 L160 450 L360 700 L520 480"/>
+      <path fill="none" stroke="#ffcf87" stroke-width="2.5" d="M1160 560 L1360 720 L1520 460 L1680 720"/></g>
+    <g opacity="0.85"><path fill="#241a1a" d="M0 650 L60 740 L95 660 L135 760 L175 680 L215 775 L260 700 L310 790 L360 720 L420 800 L490 740 L560 840 L560 960 L0 960 Z"/>
+      <path fill="#241a1a" d="M1680 650 L1620 740 L1585 660 L1545 760 L1505 680 L1465 775 L1420 700 L1370 790 L1320 720 L1260 800 L1190 740 L1120 840 L1120 960 L1680 960 Z"/></g>
+    <g><path fill="#140d0a" d="M0 790 L50 860 L90 800 L140 880 L190 810 L250 890 L320 820 L400 900 L470 850 L540 920 L540 960 L0 960 Z"/>
+      <path fill="#140d0a" d="M1680 790 L1630 860 L1590 800 L1540 880 L1490 810 L1430 890 L1360 820 L1280 900 L1210 850 L1140 920 L1140 960 L1680 960 Z"/></g>
+    <g><path fill="#140d0a" d="M0 960 L0 120 L120 300 L95 430 L150 540 L115 660 L175 780 L140 960 Z"/>
+      <path fill="#140d0a" d="M1680 960 L1680 120 L1560 300 L1585 430 L1530 540 L1565 660 L1505 780 L1540 960 Z"/>
+      <path fill="#1c130f" d="M300 960 L360 470 L420 620 L470 540 L520 760 L560 680 L560 960 Z"/>
+      <path fill="#1c130f" d="M1380 960 L1320 470 L1260 620 L1210 540 L1160 760 L1120 680 L1120 960 Z"/>
+      <g opacity="0.4"><path fill="none" stroke="#ffcf87" stroke-width="2" d="M360 470 L420 620 L470 540 L520 760"/>
+        <path fill="none" stroke="#ffcf87" stroke-width="2" d="M1320 470 L1260 620 L1210 540 L1160 760"/></g></g>
+  </svg>
+  <div class="mist m2"></div>
+  <div class="vig"></div>
+</div>
+<main class="wrap">
+  <div class="stage">
+    <canvas id="c" aria-label="Vertical Limit climbing game" data-testid="game-canvas"></canvas>
+    <div class="modal-back" id="modal-back" data-testid="modal-backdrop">
+      <div class="modal" id="modal" role="dialog" aria-modal="true" data-testid="modal"></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="bar">
+      <button class="btn" id="b-board" data-testid="open-leaderboard-btn">Leaderboard</button>
+      <button class="btn ghost" id="b-prof" data-testid="open-profile-btn">Profile</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="b-music" data-testid="toggle-music-btn">Music on</button>
+      <button class="btn ghost" id="b-sfx" data-testid="toggle-sfx-btn">SFX on</button>
+    </div>
+    <p class="hint">Tap a rock hold to climb to it. Holds with a ring are in reach. A warning marker flashes before each stone falls, so climb sideways out of its path. Points come from height only, and if you stop climbing the stones come for you. Every 200 metres you reach a base camp: <b>cash out</b> to bank your points and post them to the world leaderboard, or <b>climb on</b> for a bigger multiplier and risk losing it all. Keys: Space/Enter start, C cash out, B climb on, L leaderboard, P profile, M music.</p>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var W = 480, H = 800, M = 12;
+  var REACH = 205, TAPR = 50;
+  var CAMP_GAP = 200 * M;
+  var API = String(window.VL_API || '/api/leaderboard').replace(/\/+$/, '');
+  var cv = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var sc = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = W * sc;
+  cv.height = H * sc;
+  var FONT = '"Bangers", Impact, "Arial Black", sans-serif';
+  var nowFn = function () { return performance.now(); };
+
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsJSON(k, d) { try { var v = JSON.parse(lsGet(k, 'null')); return v === null ? d : v; } catch (e) { return d; } }
+
+  var state = 'ready';
+  var bank = parseInt(lsGet('verticallimit_bank', '0'), 10) || 0;
+  var bestCash = parseInt(lsGet('verticallimit_best', '0'), 10) || 0;
+  function saveLocal() { lsSet('verticallimit_bank', String(bank)); lsSet('verticallimit_best', String(bestCash)); }
+
+  var holds, rocks, warns, popups, parts, flashes, climber, camY, nextGenY, spineX, stretch, mult, score, bestY, nextCampY, lastCampY;
+  var spawnT, shake, frame = 0, time = 0, campsReached, endAt = 0, lostScore, savedScore, newBest, hintT, awardedM, stall, stallWarned, fallAlt = 0, lastCrunch = 0, emberT = 0;
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function hash(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+  function noise1(x) { var i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; }
+  function dist(ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function rgb(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a === undefined ? 1 : a) + ')'; }
+
+  // ================= AUDIO =================
+  var AC = null, master, mGain, sGain, noiseBuf;
+  var prefs = { music: lsGet('vl_music', '1') === '1', sfx: lsGet('vl_sfx', '1') === '1' };
+  var seq = { step: 0, nextT: 0 };
+
+  function audio() {
+    try {
+      if (!AC) {
+        var Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        AC = new Ctor();
+        var comp = AC.createDynamicsCompressor();
+        comp.connect(AC.destination);
+        master = AC.createGain(); master.gain.value = 0.9; master.connect(comp);
+        mGain = AC.createGain(); mGain.gain.value = prefs.music ? 0.5 : 0; mGain.connect(master);
+        sGain = AC.createGain(); sGain.gain.value = prefs.sfx ? 0.9 : 0; sGain.connect(master);
+        noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+        var d = noiseBuf.getChannelData(0);
+        for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        seq.nextT = AC.currentTime + 0.1;
+      }
+      if (AC.state === 'suspended' && !document.hidden) AC.resume();
+    } catch (e) { AC = null; }
+    return AC;
+  }
+  function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function env(g, t, vol, dur, att) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + (att || 0.005));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function osc(bus, t, f, dur, type, vol, slide, att) {
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    env(g, t, vol, dur, att);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + dur + 0.03);
+  }
+  function nz(bus, t, dur, vol, ftype, f, fTo, q) {
+    var s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+    s.buffer = noiseBuf;
+    fl.type = ftype;
+    fl.frequency.setValueAtTime(f, t);
+    if (fTo) fl.frequency.exponentialRampToValueAtTime(fTo, t + dur);
+    fl.Q.value = q || 1;
+    env(g, t, vol, dur, 0.003);
+    s.connect(fl); fl.connect(g); g.connect(bus);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.03);
+  }
+  function sfx(fn) {
+    if (!prefs.sfx || !audio()) return;
+    try { fn(AC.currentTime, sGain); } catch (e) {}
+  }
+  var SFX = {
+    jump: function () { sfx(function (t, b) { osc(b, t, 240, 0.16, 'triangle', 0.14, 560); nz(b, t, 0.14, 0.08, 'bandpass', 900, 2600, 2); }); },
+    land: function () { sfx(function (t, b) { osc(b, t, 150, 0.12, 'sine', 0.3, 55); nz(b, t, 0.06, 0.1, 'lowpass', 1400, 400); }); },
+    nope: function () { sfx(function (t, b) { osc(b, t, 140, 0.12, 'square', 0.07, 100); osc(b, t + 0.06, 120, 0.1, 'square', 0.06); }); },
+    warn: function () { sfx(function (t, b) { osc(b, t, 880, 0.07, 'square', 0.06); osc(b, t + 0.09, 660, 0.07, 'square', 0.06); }); },
+    whoosh: function () { sfx(function (t, b) { nz(b, t, 0.45, 0.07, 'bandpass', 3000, 500, 3); }); },
+    crunch: function () { sfx(function (t, b) { nz(b, t, 0.18, 0.22, 'lowpass', 1800, 200); osc(b, t, 110, 0.1, 'square', 0.06, 60); }); },
+    camp: function () { sfx(function (t, b) { [523, 659, 784, 1047].forEach(function (f, i) { osc(b, t + i * 0.11, f, 0.35, 'triangle', 0.16); osc(b, t + i * 0.11, f * 2, 0.2, 'sine', 0.05); }); }); },
+    cash: function () { sfx(function (t, b) { [988, 1319, 988, 1319, 1760].forEach(function (f, i) { osc(b, t + i * 0.07, f, 0.18, 'square', 0.07); }); osc(b, t + 0.36, 2093, 0.6, 'sine', 0.12); }); },
+    climbOn: function () { sfx(function (t, b) { osc(b, t, 392, 0.15, 'triangle', 0.16); osc(b, t + 0.1, 523, 0.15, 'triangle', 0.16); osc(b, t + 0.2, 784, 0.3, 'triangle', 0.18); nz(b, t + 0.2, 0.25, 0.05, 'highpass', 5000); }); },
+    death: function () { sfx(function (t, b) { nz(b, t, 0.35, 0.35, 'lowpass', 2200, 120); osc(b, t, 330, 0.9, 'sawtooth', 0.12, 50); osc(b, t + 0.05, 220, 0.8, 'square', 0.05, 40); }); },
+    click: function () { sfx(function (t, b) { osc(b, t, 660, 0.05, 'square', 0.05, 990); }); }
+  };
+
+  // procedural chiptune: A minor, i - VI - III - VII
+  var PROG = [[45, 0], [41, 1], [48, 1], [43, 1]];
+  var SCALE = [57, 60, 62, 64, 67, 69, 72, 74, 76];
+  var MEL = (function () {
+    var out = [], idx = 4, hits = [0, 3, 6, 8, 10, 12, 14];
+    for (var i = 0; i < 64; i++) {
+      var st = i % 16;
+      if (hits.indexOf(st) >= 0 && hash(i * 3.7 + 1) > 0.22) {
+        idx = clamp(idx + Math.round((hash(i * 1.3 + 7) - 0.5) * 4), 0, SCALE.length - 1);
+        if (st === 0) idx = [5, 3, 1, 4][Math.floor(i / 16)];
+        out.push(SCALE[idx]);
+      } else out.push(0);
+    }
+    return out;
+  })();
+  function musicMode() {
+    if (state === 'play') return 'play';
+    if (state === 'camp' || state === 'cashed') return 'camp';
+    if (state === 'falling') return 'silent';
+    return 'menu';
+  }
+  function tempo(mode) {
+    if (mode === 'play') return Math.min(176, 116 + 10 * (mult - 1));
+    if (mode === 'camp') return 84;
+    return 94;
+  }
+  function playStep(s, t, mode, spb) {
+    var b = mGain, bar = Math.floor(s / 16) % 4, st = s % 16, ch = PROG[bar], root = ch[0];
+    var tri = ch[1] ? [0, 4, 7] : [0, 3, 7];
+    if (mode === 'silent') return;
+    if (mode === 'menu') {
+      if (st === 0 || st === 8) osc(b, t, mtof(root), spb * 7, 'triangle', 0.16, 0, 0.01);
+      if (st % 2 === 0) osc(b, t, mtof(root + 24 + tri[(st / 2) % 3]), spb * 1.6, 'square', 0.02);
+      var mn = MEL[s % 64];
+      if (mn && st % 4 === 0) osc(b, t, mtof(mn), spb * 3, 'triangle', 0.05, 0, 0.01);
+      if (st % 4 === 2) nz(b, t, 0.03, 0.025, 'highpass', 7000);
+      return;
+    }
+    if (mode === 'camp') {
+      if (st === 0) for (var k = 0; k < 3; k++) osc(b, t, mtof(root + 12 + tri[k]), spb * 15, 'sine', 0.045, 0, 0.35);
+      if (st === 0) osc(b, t, mtof(root), spb * 15, 'triangle', 0.1, 0, 0.2);
+      var cn = MEL[s % 64];
+      if (cn && (st === 0 || st === 6 || st === 10)) osc(b, t, mtof(cn + 12), spb * 6, 'sine', 0.04, 0, 0.01);
+      return;
+    }
+    // play
+    var hype = mult >= 3;
+    if ([0, 3, 6, 8, 10, 14].indexOf(st) >= 0) osc(b, t, mtof(root + (st === 8 ? 12 : 0)), spb * 1.8, 'triangle', 0.2, 0, 0.005);
+    osc(b, t, mtof(root + 24 + tri[st % 3] + (st % 6 >= 3 ? 12 : 0)), spb * 0.9, 'square', 0.016);
+    var ln = MEL[s % 64];
+    if (ln) {
+      var oct = (hype && Math.floor(s / 64) % 2) ? 12 : 0;
+      osc(b, t, mtof(ln + oct), spb * 2.4, 'square', 0.04, 0, 0.005);
+      osc(b, t, mtof(ln + oct) * 1.006, spb * 2.4, 'square', 0.015, 0, 0.005);
+    }
+    if (st === 0 || st === 8 || (hype && (st === 6 || st === 14))) osc(b, t, 150, 0.18, 'sine', 0.5, 45);
+    if (st === 4 || st === 12) { nz(b, t, 0.12, 0.2, 'bandpass', 1800, 0, 0.8); osc(b, t, 220, 0.07, 'triangle', 0.08, 120); }
+    if (st % 2 === 1 || mult >= 2) nz(b, t, 0.03, st % 2 ? 0.045 : 0.025, 'highpass', 7500);
+  }
+  setInterval(function () {
+    if (!AC || AC.state !== 'running') return;
+    var mode = musicMode();
+    if (seq.nextT < AC.currentTime - 0.2) seq.nextT = AC.currentTime + 0.05;
+    while (seq.nextT < AC.currentTime + 0.12) {
+      var spb = 60 / tempo(mode) / 4;
+      if (prefs.music) { try { playStep(seq.step, seq.nextT, mode, spb); } catch (e) {} }
+      seq.nextT += spb;
+      seq.step++;
+    }
+  }, 25);
+  document.addEventListener('visibilitychange', function () {
+    if (!AC) return;
+    if (document.hidden) AC.suspend(); else AC.resume();
+  });
+
+  // ================= WORLD =================
+  function edgeL(wy) { return 6 + 52 * noise1(wy * 0.0035 + 11.3) + 10 * noise1(wy * 0.02 + 3.1); }
+  function edgeR(wy) { return W - (6 + 52 * noise1(wy * 0.0035 + 77.7) + 10 * noise1(wy * 0.02 + 41.9)); }
+
+  function reset() {
+    holds = []; rocks = []; warns = []; popups = []; flashes = []; parts = [];
+    stretch = 1; mult = 1; score = 0; bestY = 0; campsReached = 0;
+    spineX = W / 2; nextGenY = 0; nextCampY = -CAMP_GAP; lastCampY = 0;
+    spawnT = 3.2; shake = 0; hintT = 0; newBest = false; awardedM = 0; stall = 0; stallWarned = false;
+    var start = { x: W / 2, y: 0, type: 'ground', r: 30 };
+    holds.push(start);
+    climber = { hold: start, x: start.x, y: start.y, jump: null, queue: null, vx: 0, vy: 0, rot: 0, spin: 0, face: 1 };
+    generateHolds(-H * 2);
+    camY = climber.y - H * 0.6;
+  }
+
+  function addHold(x, y, type) {
+    var lo = type === 'camp' ? 40 : Math.max(40, edgeL(y) + 34), hi = type === 'camp' ? W - 40 : Math.min(W - 40, edgeR(y) - 34);
+    var h = { x: clamp(x, lo, hi), y: y, type: type || 'rock', r: type === 'camp' ? 34 : rnd(19, 25), shape: Math.floor(rnd(0, 3)), seed: Math.random() * 100, chalk: 0 };
+    holds.push(h);
+    return h;
+  }
+
+  function generateHolds(untilY) {
+    while (nextGenY > untilY) {
+      var y = nextGenY - rnd(85, 120);
+      if (y <= nextCampY + 20) {
+        var camp = addHold(W / 2, nextGenY - 100, 'camp');
+        camp.x = W / 2;
+        nextGenY = camp.y;
+        nextCampY = camp.y - CAMP_GAP;
+        spineX = W / 2;
+        continue;
+      }
+      var toCamp = nextGenY - nextCampY;
+      if (toCamp < 420) spineX += clamp((W / 2 - spineX) * 0.7, -140, 140);
+      else spineX = clamp(spineX + rnd(-140, 140), 95, W - 95);
+      var sh = addHold(spineX, y, 'rock');
+      spineX = sh.x;
+      var extras = Math.random() < 0.45 ? 2 : 1;
+      for (var e = 0; e < extras; e++) {
+        var side = Math.random() < 0.5 ? -1 : 1;
+        var ex = clamp(spineX + side * rnd(95, 190), 40, W - 40), ey = y + rnd(-26, 26);
+        var ok = true;
+        for (var k = holds.length - 1; k >= 0 && k > holds.length - 8; k--) {
+          var dx = holds[k].x - ex, dy = holds[k].y - ey;
+          if (dx * dx + dy * dy < 70 * 70) { ok = false; break; }
+        }
+        if (ok) {
+          var eh = addHold(ex, ey, 'rock');
+          for (var k2 = holds.length - 2; k2 >= 0 && k2 > holds.length - 9; k2--) {
+            if (dist(holds[k2].x, holds[k2].y, eh.x, eh.y) < 60) { holds.pop(); break; }
+          }
+        }
+      }
+      nextGenY = y;
+    }
+  }
+
+  function refPos() {
+    if (climber.jump) return { x: climber.jump.to.x, y: climber.jump.to.y, hold: climber.jump.to };
+    return { x: climber.x, y: climber.y, hold: climber.hold };
+  }
+
+  function startJump(to) {
+    climber.jump = { from: { x: climber.x, y: climber.y }, to: to, t: 0, dur: 0.28 };
+    if (to.x !== climber.x) climber.face = to.x > climber.x ? 1 : -1;
+    SFX.jump();
+  }
+
+  function land(hold) {
+    climber.hold = hold; climber.x = hold.x; climber.y = hold.y; climber.jump = null;
+    hold.chalk = 1;
+    burst(hold.x, hold.y - 4, 7, { kind: 'dust', col: [255, 255, 255], spd: 70, g: -20, life: 0.5, size: 5 });
+    SFX.land();
+    if (hold.type === 'camp') { arriveCamp(hold); return; }
+    if (hold.y < bestY) bestY = hold.y;
+    var mNow = Math.floor(-bestY / M);
+    if (mNow > awardedM) {
+      var pts = (mNow - awardedM) * mult;
+      awardedM = mNow;
+      score += pts;
+      stall = 0; stallWarned = false;
+      popups.push({ x: hold.x - 20, y: hold.y - 50, t: 0, text: '+' + pts, color: '#ffe08a' });
+    }
+    if (climber.queue) {
+      var q = climber.queue; climber.queue = null;
+      if (q !== hold && dist(q.x, q.y, hold.x, hold.y) <= REACH) startJump(q);
+    }
+  }
+
+  function arriveCamp(hold) {
+    state = 'camp';
+    campsReached++;
+    bestY = Math.min(bestY, hold.y);
+    var mCamp = Math.floor(-bestY / M);
+    if (mCamp > awardedM) { score += (mCamp - awardedM) * mult; awardedM = mCamp; }
+    score += 50 * mult;
+    stall = 0; stallWarned = false;
+    rocks = []; warns = [];
+    climber.queue = null;
+    for (var i = 0; i < 3; i++) burst(hold.x + rnd(-100, 100), hold.y - 60, 14, { kind: 'confetti', spd: 260, g: 420, life: 1.4, size: 6 });
+    SFX.camp();
+  }
+
+  function cashOut() {
+    if (state !== 'camp') return;
+    bank += score;
+    newBest = score > bestCash;
+    if (newBest) bestCash = score;
+    savedScore = score;
+    saveLocal();
+    state = 'cashed';
+    endAt = nowFn();
+    SFX.cash();
+    burst(W / 2, camY + 260, 40, { kind: 'confetti', spd: 380, g: 500, life: 1.8, size: 7 });
+    queueHaul(savedScore, Math.max(0, Math.round(-climber.y / M)));
+  }
+
+  function climbOn() {
+    if (state !== 'camp') return;
+    stretch++; mult++;
+    lastCampY = climber.y;
+    state = 'play';
+    spawnT = 2.6;
+    popups.push({ x: W / 2 - 70, y: climber.y - 80, t: 0, text: 'x' + mult + ' POINTS', color: '#ffe08a' });
+    SFX.climbOn();
+  }
+
+  function die(rx, ry) {
+    state = 'falling';
+    lostScore = score;
+    score = 0;
+    shake = 16;
+    fallAlt = Math.max(0, Math.round(-climber.y / M));
+    climber.jump = null;
+    climber.vy = -320;
+    climber.vx = (climber.x - rx) * 2 + rnd(-40, 40);
+    climber.spin = Math.random() < 0.5 ? -7 : 7;
+    burst(rx, ry, 22, { kind: 'chunk', col: [60, 60, 66], spd: 340, g: 1100, life: 1.1, size: 6 });
+    burst(rx, ry, 12, { kind: 'dust', col: [210, 200, 190], spd: 120, g: -10, life: 0.8, size: 10 });
+    endAt = nowFn() + 1100;
+    SFX.death();
+  }
+
+  function startRun() { reset(); state = 'play'; }
+
+  // ================= PARTICLES =================
+  var CONF = ['#ffcf4d', '#ff8a6a', '#a7e8a0', '#7cc6ff', '#ffffff'];
+  function burst(x, y, n, o) {
+    for (var i = 0; i < n; i++) {
+      var a = rnd(0, Math.PI * 2), s = rnd(0.3, 1) * o.spd;
+      parts.push({
+        x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - (o.kind === 'chunk' || o.kind === 'confetti' ? o.spd * 0.5 : 0),
+        g: o.g, life: o.life * rnd(0.6, 1), max: o.life, size: o.size * rnd(0.5, 1.2), kind: o.kind,
+        col: o.kind === 'confetti' ? CONF[i % CONF.length] : rgb(o.col), rot: rnd(0, 6), spin: rnd(-10, 10)
+      });
+    }
+    if (parts.length > 500) parts.splice(0, parts.length - 500);
+  }
+  function updateParts(dt) {
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.spin * dt; p.life -= dt;
+      if (p.kind === 'dust' || p.kind === 'ember') { p.vx *= 0.96; p.size += dt * 6; }
+      if (p.life <= 0) parts.splice(i, 1);
+    }
+  }
+  function drawParts() {
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i], a = clamp(p.life / p.max, 0, 1), sy = p.y - camY;
+      if (sy < -40 || sy > H + 40) continue;
+      if (p.kind === 'dust') {
+        ctx.globalAlpha = a * 0.45; ctx.fillStyle = p.col;
+        ctx.beginPath(); ctx.arc(p.x, sy, p.size, 0, 7); ctx.fill();
+      } else if (p.kind === 'ember') {
+        ctx.globalAlpha = a; ctx.fillStyle = a > 0.5 ? '#ffd27a' : '#ff7a3a';
+        ctx.beginPath(); ctx.arc(p.x, sy, 1.6 + a * 1.5, 0, 7); ctx.fill();
+      } else {
+        ctx.globalAlpha = Math.min(1, a * 2);
+        ctx.save(); ctx.translate(p.x, sy); ctx.rotate(p.rot);
+        ctx.fillStyle = p.col;
+        if (p.kind === 'confetti') ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        else { ctx.strokeStyle = '#17110c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-p.size / 2, -p.size / 3); ctx.lineTo(p.size / 2, -p.size / 2); ctx.lineTo(p.size / 3, p.size / 2); ctx.lineTo(-p.size / 2, p.size / 3); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // snow, screen space
+  var flakes = [];
+  for (var fi0 = 0; fi0 < 120; fi0++) flakes.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(1, 3.2), s: Math.random(), ph: rnd(0, 6) });
+  function visAlt() { return Math.max(0, -(camY + H * 0.6) / M); }
+  function updateSnow(dt, camD) {
+    var alt = visAlt(), wind = 12 + 80 * clamp(alt / 900, 0, 1);
+    for (var i = 0; i < flakes.length; i++) {
+      var f = flakes[i];
+      f.y += (24 + f.s * 55) * dt + camD * (0.3 + f.s * 0.5);
+      f.x += wind * (0.4 + f.s) * dt + Math.sin(time * 1.4 + f.ph) * 14 * dt;
+      if (f.y > H + 6) { f.y = -6; f.x = rnd(-40, W); }
+      if (f.y < -8) { f.y = H + 4; }
+      if (f.x > W + 6) f.x = -6;
+    }
+  }
+  function drawSnow() {
+    var alt = visAlt(), n = Math.floor(flakes.length * clamp(0.15 + (alt - 60) / 400, 0.15, 1));
+    ctx.fillStyle = '#ffffff';
+    for (var i = 0; i < n; i++) {
+      var f = flakes[i];
+      ctx.globalAlpha = 0.35 + f.s * 0.5;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ================= INPUT =================
+  var modalOpen = false;
+  function tap(sx, sy) {
+    audio();
+    var now = nowFn();
+    if (state === 'ready') { startRun(); return; }
+    if (state === 'falling') return;
+    if (state === 'dead' || state === 'cashed') { if (now - endAt > 500) startRun(); return; }
+    if (state === 'camp') {
+      if (sx >= 40 && sx <= 440 && sy >= 430 && sy <= 530) cashOut();
+      else if (sx >= 40 && sx <= 440 && sy >= 550 && sy <= 650) climbOn();
+      return;
+    }
+    if (state !== 'play') return;
+    var wx = sx, wy = sy + camY, best = null, bd = TAPR;
+    var ref = refPos();
+    for (var i = 0; i < holds.length; i++) {
+      var h = holds[i];
+      if (h === ref.hold) continue;
+      var d = dist(h.x, h.y, wx, wy);
+      if (d < bd) { bd = d; best = h; }
+    }
+    if (!best) return;
+    if (best.y > bestY + 130) { flashes.push({ x: best.x, y: best.y, t: 0, label: 'TOO LOW' }); SFX.nope(); return; }
+    if (dist(best.x, best.y, ref.x, ref.y) > REACH) { flashes.push({ x: best.x, y: best.y, t: 0 }); SFX.nope(); return; }
+    if (climber.jump) climber.queue = best; else startJump(best);
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (modalOpen) return;
+    var rect = cv.getBoundingClientRect();
+    tap((e.clientX - rect.left) / rect.width * W, (e.clientY - rect.top) / rect.height * H);
+  });
+  document.addEventListener('keydown', function (e) {
+    var k = e.key;
+    if (modalOpen) { if (k === 'Escape') closeModal(); return; }
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (k === ' ' || k === 'Enter') {
+      if (tag === 'BUTTON') return;
+      e.preventDefault();
+      if (!e.repeat && state !== 'camp' && state !== 'play') tap(-1, -1);
+    }
+    else if ((k === 'c' || k === 'C') && state === 'camp') cashOut();
+    else if ((k === 'b' || k === 'B') && state === 'camp') climbOn();
+    else if ((k === 'l' || k === 'L') && state !== 'play') openBoard();
+    else if ((k === 'p' || k === 'P') && state !== 'play') openProfile();
+    else if (k === 'm' || k === 'M') toggleMusic();
+  });
+
+  // ================= ROCKS =================
+  function spawnWarn(px) {
+    warns.push({ x: clamp(px, 30, W - 30), t: 0, dur: Math.max(0.35, 0.6 - 0.05 * (stretch - 1)) });
+    SFX.warn();
+  }
+  function nextHoldX() {
+    var ref = refPos(), best = null;
+    for (var i = 0; i < holds.length; i++) {
+      var h = holds[i];
+      if (h === ref.hold || h.y >= ref.y - 20) continue;
+      if (dist(h.x, h.y, ref.x, ref.y) > REACH) continue;
+      if (!best || h.y < best.y) best = h;
+    }
+    return best ? best.x : ref.x;
+  }
+  function scheduleRocks() {
+    var ref = refPos(), cx = ref.x, roll = Math.random();
+    var dawdling = stall > 2.2;
+    var first;
+    if (dawdling) first = cx + rnd(-28, 28);
+    else if (roll < 0.5) first = cx + rnd(-90, 90);
+    else if (roll < 0.7) first = nextHoldX() + rnd(-30, 30);
+    else first = rnd(40, W - 40);
+    spawnWarn(first);
+    if ((stretch >= 3 && Math.random() < 0.3) || (dawdling && Math.random() < 0.4)) {
+      spawnWarn(first + (Math.random() < 0.5 ? -1 : 1) * rnd(150, 240));
+    }
+    var base = Math.max(1.3, 2.3 - 0.2 * (stretch - 1)) + rnd(0, 0.4);
+    spawnT = dawdling ? base * 0.5 : base;
+  }
+  function makeRock(x) {
+    var r = rnd(15, 22), pts = [];
+    for (var i = 0; i < 9; i++) pts.push(rnd(0.72, 1.12));
+    SFX.whoosh();
+    return { x: x, y: camY - 50, vy: 520 + 40 * (stretch - 1), r: r, rot: rnd(0, 6), spin: rnd(-4, 4), pts: pts, lastHit: null };
+  }
+  function moveRocks(dt, collide) {
+    var cx = climber.x, cy = climber.y + 48;
+    for (var ri = rocks.length - 1; ri >= 0; ri--) {
+      var r = rocks[ri];
+      r.y += r.vy * dt; r.rot += r.spin * dt;
+      for (var hi = 0; hi < holds.length; hi++) {
+        var h = holds[hi];
+        if (h.type !== 'rock' || h === r.lastHit) continue;
+        if (Math.abs(r.x - h.x) < r.r + h.r && Math.abs(r.y - h.y) < r.r + h.r * 0.7) {
+          r.lastHit = h;
+          var mx = (r.x + h.x) / 2, my = h.y - h.r * 0.6;
+          burst(mx, my, 8, { kind: 'chunk', col: [196, 170, 120], spd: 220, g: 1000, life: 0.8, size: 5 });
+          burst(mx, my, 5, { kind: 'dust', col: [230, 215, 185], spd: 60, g: -15, life: 0.6, size: 7 });
+          shake = Math.max(shake, 3);
+          var n = nowFn();
+          if (n - lastCrunch > 90) { lastCrunch = n; SFX.crunch(); }
+        }
+      }
+      if (collide && dist(r.x, r.y, cx, cy) < r.r + 15) { die(r.x, r.y); return true; }
+      if (r.y - camY > H + 80) rocks.splice(ri, 1);
+    }
+    return false;
+  }
+
+  // ================= UPDATE =================
+  function update(dt) {
+    frame += dt * 60; time += dt;
+    if (shake > 0) shake = Math.max(0, shake - 30 * dt);
+    for (var pi = popups.length - 1; pi >= 0; pi--) { popups[pi].t += dt; popups[pi].y -= 40 * dt; if (popups[pi].t > 0.9) popups.splice(pi, 1); }
+    for (var fi = flashes.length - 1; fi >= 0; fi--) { flashes[fi].t += dt; if (flashes[fi].t > 0.35) flashes.splice(fi, 1); }
+    for (var ci = 0; ci < holds.length; ci++) if (holds[ci].chalk > 0.25) holds[ci].chalk = Math.max(0.25, holds[ci].chalk - dt * 0.4);
+    updateParts(dt);
+    emberT -= dt;
+    if (emberT <= 0) {
+      emberT = 0.07;
+      for (var ei = 0; ei < holds.length; ei++) {
+        var eh = holds[ei];
+        if (eh.type === 'camp' && eh.y - camY > -60 && eh.y - camY < H + 60) parts.push({ x: eh.x + 78 + rnd(-6, 6), y: eh.y - 18, vx: rnd(-15, 15), vy: rnd(-70, -40), g: -10, life: rnd(0.6, 1.1), max: 1.1, size: 1, kind: 'ember', col: '#ffb347', rot: 0, spin: 0 });
+      }
+    }
+    if (state === 'play') {
+      hintT += dt;
+      stall += dt;
+      if (stall > 2.2 && !stallWarned && bestY < 0) { stallWarned = true; popups.push({ x: W / 2 - 96, y: camY + 150, t: 0, text: 'KEEP CLIMBING!', color: '#ff9f80' }); }
+    }
+    var prevCam = camY;
+    if (state !== 'falling' && state !== 'dead') {
+      var target = climber.y - H * 0.6;
+      if (target < camY) camY += (target - camY) * Math.min(1, dt * 5);
+    }
+    updateSnow(dt, prevCam - camY);
+
+    if (state === 'falling' || state === 'dead') {
+      climber.vy += 1700 * dt; climber.y += climber.vy * dt; climber.x += climber.vx * dt; climber.rot += climber.spin * dt;
+      moveRocks(dt, false);
+      if (state === 'falling' && nowFn() >= endAt) state = 'dead';
+      return;
+    }
+    if (state !== 'play') return;
+
+    if (climber.jump) {
+      var j = climber.jump;
+      j.t += dt / j.dur;
+      if (j.t >= 1) land(j.to);
+      else {
+        var e = j.t * (2 - j.t);
+        climber.x = j.from.x + (j.to.x - j.from.x) * e;
+        climber.y = j.from.y + (j.to.y - j.from.y) * e - Math.sin(j.t * Math.PI) * 34;
+      }
+    }
+    if (state !== 'play') return;
+
+    spawnT -= dt;
+    if (spawnT <= 0 && warns.length + rocks.length < 4) scheduleRocks();
+    for (var wi = warns.length - 1; wi >= 0; wi--) {
+      var w = warns[wi];
+      w.t += dt;
+      if (w.t >= w.dur) { rocks.push(makeRock(w.x)); warns.splice(wi, 1); }
+    }
+    if (moveRocks(dt, true)) return;
+
+    generateHolds(camY - 700);
+    for (var hi = holds.length - 1; hi >= 0; hi--) if (holds[hi].y - camY > H + 200 && holds[hi] !== climber.hold) holds.splice(hi, 1);
+  }
+
+  // ================= DRAW HELPERS =================
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+  function txt(str, x, y, size, color, align, stroke) {
+    ctx.font = size + 'px ' + FONT;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'alphabetic';
+    if (stroke) { ctx.lineWidth = Math.max(4, size * 0.14); ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(str, x, y); }
+    ctx.fillStyle = color;
+    ctx.fillText(str, x, y);
+  }
+
+  // pre-rendered assets
+  function makeCanvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  var wallTex = (function () {
+    var c = makeCanvas(256, 256), g = c.getContext('2d');
+    for (var i = 0; i < 40; i++) {
+      g.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+      g.beginPath(); g.ellipse(rnd(0, 256), rnd(0, 256), rnd(8, 34), rnd(5, 18), rnd(0, 3), 0, 7); g.fill();
+    }
+    for (var k = 0; k < 1600; k++) {
+      g.fillStyle = Math.random() < 0.6 ? 'rgba(0,0,0,' + rnd(0.05, 0.18) + ')' : 'rgba(255,240,220,' + rnd(0.04, 0.12) + ')';
+      g.fillRect(rnd(0, 256), rnd(0, 256), rnd(1, 2.6), rnd(1, 2.6));
+    }
+    g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1.2;
+    for (var q = 0; q < 6; q++) {
+      var x = rnd(0, 256), y = rnd(0, 256);
+      g.beginPath(); g.moveTo(x, y);
+      for (var s = 0; s < 4; s++) { x += rnd(-14, 14); y += rnd(6, 16); g.lineTo(x, y); }
+      g.stroke();
+    }
+    return ctx.createPattern(c, 'repeat');
+  })();
+  var vignette = (function () {
+    var c = makeCanvas(W, H), g = c.getContext('2d');
+    var gr = g.createRadialGradient(W / 2, H * 0.45, H * 0.3, W / 2, H * 0.5, H * 0.75);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.5)');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    return c;
+  })();
+  var stars = [];
+  for (var si0 = 0; si0 < 90; si0++) stars.push({ x: rnd(0, W), y: rnd(0, H * 0.95), s: rnd(0.6, 1.8), tw: rnd(0, 6) });
+
+  // sky palettes by altitude (metres)
+  var SKY = [
+    [0, [118, 188, 236], [252, 226, 176]],
+    [260, [96, 104, 186], [248, 162, 112]],
+    [520, [42, 38, 96], [204, 96, 112]],
+    [800, [10, 14, 42], [44, 42, 92]],
+    [1500, [4, 6, 22], [22, 30, 66]]
+  ];
+  function skyAt(alt) {
+    for (var i = 0; i < SKY.length - 1; i++) {
+      if (alt <= SKY[i + 1][0]) {
+        var t = (alt - SKY[i][0]) / (SKY[i + 1][0] - SKY[i][0]);
+        return { top: mix(SKY[i][1], SKY[i + 1][1], t), bot: mix(SKY[i][2], SKY[i + 1][2], t) };
+      }
+    }
+    var l = SKY[SKY.length - 1];
+    return { top: l[1], bot: l[2] };
+  }
+  function nightness(alt) { return clamp((alt - 420) / 380, 0, 1); }
+
+  // ================= DRAW: BACKDROP =================
+  function drawSky(alt, sky, night) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, rgb(sky.top)); g.addColorStop(1, rgb(sky.bot));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    if (night > 0) {
+      ctx.fillStyle = '#ffffff';
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        ctx.globalAlpha = night * (0.45 + 0.55 * Math.sin(time * 2 + s.tw) * 0.5 + 0.275);
+        ctx.fillRect(s.x, s.y, s.s, s.s);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // sun sinks as you rise, the moon takes over
+    var sunY = 120 + alt * 0.9;
+    if (sunY < H + 80) {
+      var sunCol = mix([255, 244, 200], [255, 140, 90], clamp(alt / 500, 0, 1));
+      var sg = ctx.createRadialGradient(70, sunY, 10, 70, sunY, 120);
+      sg.addColorStop(0, rgb(sunCol, 0.55)); sg.addColorStop(1, rgb(sunCol, 0));
+      ctx.fillStyle = sg; ctx.fillRect(0, sunY - 120, 200, 240);
+      ctx.fillStyle = rgb(sunCol); ctx.beginPath(); ctx.arc(70, sunY, 36, 0, 7); ctx.fill();
+    }
+    if (night > 0) {
+      ctx.globalAlpha = night;
+      var mx = W - 60, my = 150;
+      var mg = ctx.createRadialGradient(mx, my, 10, mx, my, 110);
+      mg.addColorStop(0, 'rgba(220,230,255,0.35)'); mg.addColorStop(1, 'rgba(220,230,255,0)');
+      ctx.fillStyle = mg; ctx.fillRect(mx - 110, my - 110, 220, 220);
+      ctx.fillStyle = '#f4f1e4'; ctx.beginPath(); ctx.arc(mx, my, 30, 0, 7); ctx.fill();
+      ctx.fillStyle = rgb(sky.top); ctx.beginPath(); ctx.arc(mx + 13, my - 8, 26, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // aurora above 900 m
+    var aur = clamp((alt - 900) / 300, 0, 1);
+    if (aur > 0) {
+      for (var b = 0; b < 3; b++) {
+        ctx.globalAlpha = aur * (0.16 - b * 0.04);
+        ctx.fillStyle = b === 1 ? '#7cf2c5' : '#6be38f';
+        ctx.beginPath();
+        var base = 180 + b * 70;
+        ctx.moveTo(0, base);
+        for (var x = 0; x <= W; x += 16) ctx.lineTo(x, base + Math.sin(x * 0.015 + time * 0.6 + b) * 30 + Math.sin(x * 0.04 + time) * 10);
+        for (var x2 = W; x2 >= 0; x2 -= 16) ctx.lineTo(x2, base + 70 + Math.sin(x2 * 0.02 + time * 0.5 + b * 2) * 22);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  function ridge(base, amp, freq, seed, col, snowCol) {
+    if (base - amp * 1.3 > H) return;
+    ctx.beginPath(); ctx.moveTo(0, H);
+    var pts = [];
+    for (var x = 0; x <= W + 12; x += 12) {
+      var y = base - noise1(x * freq + seed) * amp - noise1(x * freq * 4 + seed * 2) * amp * 0.28;
+      pts.push(y); ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+    if (snowCol) {
+      ctx.strokeStyle = snowCol; ctx.lineWidth = 3; ctx.beginPath();
+      for (var i = 0; i < pts.length; i++) { if (i === 0) ctx.moveTo(0, pts[0]); else ctx.lineTo(i * 12, pts[i]); }
+      ctx.stroke();
+    }
+  }
+  function cloud(x, y, s, col) {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 46 * s, 16 * s, 0, 0, 7);
+    ctx.ellipse(x - 26 * s, y + 4 * s, 26 * s, 12 * s, 0, 0, 7);
+    ctx.ellipse(x + 22 * s, y - 8 * s, 28 * s, 16 * s, 0, 0, 7);
+    ctx.fill();
+  }
+  function drawBackdrop(alt, sky, night) {
+    var py = -camY;
+    var haze = sky.bot;
+    ridge(560 + py * 0.02, 170, 0.008, 4.2, rgb(mix(haze, [70, 80, 110], 0.45)), rgb(mix(haze, [255, 255, 255], 0.5), 0.6));
+    ridge(640 + py * 0.05, 140, 0.012, 9.7, rgb(mix(haze, [40, 44, 60], 0.65)), rgb(mix(haze, [255, 255, 255], 0.3), 0.45));
+    var cs = 0.25, i0 = Math.floor((camY * cs - 120) / 200);
+    var ccol = rgb(mix([255, 255, 255], sky.top, 0.35 + night * 0.4), 0.7 - night * 0.35);
+    for (var i = i0; i < i0 + Math.ceil(H / 200) + 3; i++) {
+      var y = i * 200 - camY * cs;
+      var x = ((hash(i) * (W + 220) + time * (8 + hash(i + 3) * 14)) % (W + 220)) - 110;
+      cloud(x, y, 0.7 + hash(i + 5) * 0.8, ccol);
+    }
+  }
+
+  // ================= DRAW: CLIFF =================
+  function drawWall(alt, sky, night) {
+    var groundY = 40 - camY;
+    var bottom = Math.min(H + 10, groundY);
+    if (bottom > -10) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(edgeL(camY - 10), -10);
+      for (var y = -10; y <= bottom; y += 16) ctx.lineTo(edgeL(y + camY), y);
+      ctx.lineTo(edgeL(bottom + camY), bottom);
+      ctx.lineTo(edgeR(bottom + camY), bottom);
+      for (var y2 = bottom; y2 >= -10; y2 -= 16) ctx.lineTo(edgeR(y2 + camY), y2);
+      ctx.closePath();
+      ctx.save();
+      ctx.clip();
+      var top = mix(mix([112, 92, 74], [96, 82, 104], clamp(alt / 520, 0, 1)), [52, 58, 82], night);
+      var bot = mix(top, [30, 26, 24], 0.35);
+      var g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+      ctx.fillStyle = g; ctx.fillRect(0, -10, W, bottom + 20);
+      ctx.save();
+      var off = ((-camY % 256) + 256) % 256;
+      ctx.translate(0, off - 256);
+      ctx.fillStyle = wallTex; ctx.fillRect(0, 0, W, H + 512);
+      ctx.restore();
+      // strata
+      var row0 = Math.floor(camY / 110) - 1;
+      for (var i = row0; i < row0 + Math.ceil(H / 110) + 3; i++) {
+        var sy = i * 110 - camY + hash(i) * 40;
+        ctx.strokeStyle = 'rgba(0,0,0,' + (0.12 + hash(i + 9) * 0.1) + ')';
+        ctx.lineWidth = 2 + hash(i + 3) * 3;
+        ctx.beginPath(); ctx.moveTo(0, sy);
+        for (var x = 0; x <= W; x += 40) ctx.lineTo(x, sy + Math.sin(x * 0.02 + i) * 6 + (hash(i * 13 + x) - 0.5) * 8);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,240,220,0.06)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(0, sy + 4);
+        for (var x3 = 0; x3 <= W; x3 += 40) ctx.lineTo(x3, sy + 4 + Math.sin(x3 * 0.02 + i) * 6 + (hash(i * 13 + x3) - 0.5) * 8);
+        ctx.stroke();
+      }
+      var c0 = Math.floor(camY / 260) - 1;
+      for (var c = c0; c < c0 + Math.ceil(H / 260) + 3; c++) {
+        for (var k = 0; k < 2; k++) {
+          var cx = hash(c * 5 + k) * W, cy = c * 260 - camY + hash(c * 7 + k) * 200;
+          ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + (hash(c + k) - 0.5) * 60, cy + 34);
+          ctx.lineTo(cx + (hash(c * 3 + k) - 0.5) * 80, cy + 70);
+          ctx.stroke();
+        }
+        // snow patches higher up
+        if (alt > 120) {
+          var px = hash(c * 11) * W, pyy = c * 260 - camY + hash(c * 17) * 220;
+          ctx.fillStyle = 'rgba(245,248,255,' + (0.18 + 0.5 * clamp((alt - 120) / 500, 0, 1)) * 0.6 + ')';
+          ctx.beginPath(); ctx.ellipse(px, pyy, 30 + hash(c) * 30, 6 + hash(c + 2) * 5, (hash(c + 4) - 0.5) * 0.4, 0, 7); ctx.fill();
+        }
+      }
+      // altitude markers every 50 metres
+      var m0 = Math.floor(camY / (50 * M)) - 1;
+      for (var mi = m0; mi < m0 + Math.ceil(H / (50 * M)) + 3; mi++) {
+        var wy = mi * 50 * M - camY, metres = -mi * 50;
+        if (metres <= 0 || wy < -20 || wy > H + 20) continue;
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 2;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath(); ctx.moveTo(0, wy); ctx.lineTo(W, wy); ctx.stroke();
+        ctx.setLineDash([]);
+        txt(metres + ' m', edgeR(wy + camY) - 10, wy - 6, 18, 'rgba(255,255,255,0.6)', 'right');
+      }
+      // side shading for roundness
+      var sg = ctx.createLinearGradient(0, 0, W, 0);
+      sg.addColorStop(0, 'rgba(0,0,0,0.35)'); sg.addColorStop(0.18, 'rgba(0,0,0,0)'); sg.addColorStop(0.82, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,0.4)');
+      ctx.fillStyle = sg; ctx.fillRect(0, -10, W, bottom + 20);
+      ctx.restore();
+      ctx.strokeStyle = '#17110c'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.restore();
+    }
+    // meadow at the foot of the wall
+    if (groundY < H + 10) {
+      var mg = ctx.createLinearGradient(0, groundY, 0, H);
+      mg.addColorStop(0, '#4f6b33'); mg.addColorStop(1, '#22301a');
+      for (var t = 0; t < 14; t++) pine(hash(t + 40) * W, groundY + 20 + hash(t + 3) * 30, 50 + hash(t + 8) * 50, t % 2 ? '#1f3a2a' : '#284a33');
+      ctx.fillStyle = mg;
+      ctx.beginPath(); ctx.moveTo(0, groundY + 30);
+      for (var gx = 0; gx <= W; gx += 20) ctx.lineTo(gx, groundY + 26 + Math.sin(gx * 0.03) * 6);
+      ctx.lineTo(W, H + 10); ctx.lineTo(0, H + 10); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3; ctx.stroke();
+    }
+  }
+  function pine(x, base, h, col) {
+    ctx.fillStyle = col; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2;
+    for (var i = 0; i < 3; i++) {
+      var w = h * (0.42 - i * 0.1), y = base - i * h * 0.28;
+      ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x, y - h * 0.45); ctx.lineTo(x + w, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+
+  // ================= DRAW: HOLDS =================
+  function holdPath(h) {
+    ctx.beginPath();
+    if (h.shape === 0) ctx.ellipse(0, 0, h.r * 1.15, h.r * 0.85, 0, 0, 7);
+    else if (h.shape === 1) rrect(-h.r * 1.1, -h.r * 0.8, h.r * 2.2, h.r * 1.6, h.r * 0.6);
+    else { ctx.moveTo(-h.r * 1.1, h.r * 0.6); ctx.quadraticCurveTo(-h.r * 0.9, -h.r, 0, -h.r * 0.9); ctx.quadraticCurveTo(h.r * 1.1, -h.r * 0.7, h.r * 1.1, h.r * 0.6); ctx.closePath(); }
+  }
+  function drawHold(h, night) {
+    var sy = h.y - camY;
+    if (sy < -90 || sy > H + 90) return;
+    if (h.type === 'camp') { drawCamp(h, sy, night); return; }
+    if (h.type === 'ground') { drawStart(h, sy); return; }
+    var r = h.r;
+    ctx.save();
+    ctx.translate(h.x, sy);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(5, r * 0.75, r * 1.1, r * 0.45, 0, 0, 7); ctx.fill();
+    holdPath(h);
+    var g = ctx.createRadialGradient(-r * 0.4, -r * 0.5, r * 0.15, 0, 0, r * 1.35);
+    var lit = mix([243, 228, 189], [200, 205, 225], night * 0.6);
+    g.addColorStop(0, rgb(lit)); g.addColorStop(0.55, rgb(mix(lit, [190, 160, 110], 0.6))); g.addColorStop(1, rgb(mix(lit, [120, 92, 60], 0.85)));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(70,45,25,0.35)';
+    for (var k = 0; k < 5; k++) {
+      ctx.beginPath(); ctx.arc((hash(h.seed + k) - 0.5) * r * 1.3, (hash(h.seed + k + 9) - 0.3) * r * 0.9, 1.2 + hash(h.seed + k * 3) * 1.6, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(60,40,20,0.35)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.1); ctx.lineTo(r * 0.45, r * 0.45); ctx.lineTo(r * 0.3, r * 0.6); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.25, -r * 0.4, r * 0.55, r * 0.17, -0.2, 0, 7); ctx.fill();
+    if (h.chalk > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.35 * h.chalk) + ')';
+      ctx.beginPath(); ctx.ellipse(0, -r * 0.55, r * 0.7, r * 0.25, 0, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawStart(h, sy) {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; rrect(h.x - 116, sy + 4, 240, 60, 12); ctx.fill();
+    var g = ctx.createLinearGradient(0, sy - 4, 0, sy + 56);
+    g.addColorStop(0, '#6a5845'); g.addColorStop(1, '#3a3027');
+    ctx.fillStyle = g; rrect(h.x - 120, sy - 4, 240, 60, 12); ctx.fill();
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#7ea24a'; rrect(h.x - 114, sy - 6, 228, 10, 5); ctx.fill(); ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2; ctx.stroke();
+    txt('START', h.x, sy + 38, 24, '#fff3d6', 'center', '#17110c');
+  }
+  function drawCamp(h, sy, night) {
+    var x = h.x;
+    // fire glow
+    var fx = x + 78, fy = sy - 10, fl = 0.85 + Math.sin(time * 13) * 0.08 + Math.sin(time * 7.3) * 0.07;
+    var gg = ctx.createRadialGradient(fx, fy - 10, 4, fx, fy - 10, 110 + night * 60);
+    gg.addColorStop(0, 'rgba(255,170,70,' + (0.35 + night * 0.25) * fl + ')'); gg.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = gg; ctx.fillRect(fx - 180, fy - 180, 360, 360);
+    // ledge
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; rrect(x - 126, sy + 2, 260, 36, 12); ctx.fill();
+    var lg = ctx.createLinearGradient(0, sy - 6, 0, sy + 30);
+    lg.addColorStop(0, '#8a745a'); lg.addColorStop(1, '#4e4031');
+    ctx.fillStyle = lg; rrect(x - 130, sy - 6, 260, 36, 12); ctx.fill();
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#f4f6fb';
+    ctx.beginPath(); ctx.moveTo(x - 124, sy - 2);
+    for (var dx = -124; dx <= 124; dx += 16) ctx.quadraticCurveTo(x + dx + 8, sy + 8 + hash(dx) * 6, x + dx + 16, sy - 2);
+    ctx.lineTo(x + 124, sy - 8); ctx.lineTo(x - 124, sy - 8); ctx.closePath(); ctx.fill();
+    // tent
+    ctx.fillStyle = '#f28c28'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x - 54, sy - 6); ctx.lineTo(x - 8, sy - 64); ctx.lineTo(x + 38, sy - 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#c96a16';
+    ctx.beginPath(); ctx.moveTo(x - 8, sy - 64); ctx.lineTo(x + 38, sy - 6); ctx.lineTo(x + 8, sy - 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#17110c';
+    ctx.beginPath(); ctx.moveTo(x - 22, sy - 6); ctx.lineTo(x - 8, sy - 34); ctx.lineTo(x + 6, sy - 6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 40, sy - 24); ctx.lineTo(x - 24, sy - 44); ctx.stroke();
+    // flag
+    ctx.fillStyle = '#e9dfca'; ctx.fillRect(x - 96, sy - 70, 4, 64);
+    ctx.fillStyle = '#ffcf4d'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 92, sy - 70);
+    for (var fxi = 0; fxi <= 34; fxi += 6) ctx.lineTo(x - 92 + fxi, sy - 70 + Math.sin(time * 6 + fxi * 0.2) * 3 + fxi * 0.05);
+    ctx.lineTo(x - 58, sy - 56);
+    for (var fxj = 34; fxj >= 0; fxj -= 6) ctx.lineTo(x - 92 + fxj, sy - 46 + Math.sin(time * 6 + fxj * 0.2) * 3 - fxj * 0.25);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // fire
+    ctx.strokeStyle = '#5a3a1e'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(fx - 14, sy - 4); ctx.lineTo(fx + 14, sy - 12); ctx.moveTo(fx + 14, sy - 4); ctx.lineTo(fx - 14, sy - 12); ctx.stroke();
+    flame(fx, sy - 8, 16 * fl, '#ff6a2a');
+    flame(fx, sy - 8, 10 * (1.8 - fl), '#ffd24d');
+    txt('BASE CAMP', x, sy + 56, 24, '#fff3d6', 'center', '#17110c');
+  }
+  function flame(x, y, s, col) {
+    ctx.fillStyle = col; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - s * 0.7, y);
+    ctx.quadraticCurveTo(x - s * 0.8, y - s * 1.2, x + Math.sin(time * 9) * s * 0.2, y - s * 2);
+    ctx.quadraticCurveTo(x + s * 0.8, y - s * 1.2, x + s * 0.7, y);
+    ctx.closePath(); ctx.fill();
+  }
+  function drawReach() {
+    var ref = refPos(), pulse = 0.65 + Math.sin(time * 6) * 0.2;
+    for (var i = 0; i < holds.length; i++) {
+      var h = holds[i];
+      if (h === ref.hold) continue;
+      var sy = h.y - camY;
+      if (sy < -40 || sy > H + 40) continue;
+      if (dist(h.x, h.y, ref.x, ref.y) <= REACH && h.y <= bestY + 130) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + pulse + ')';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([5, 6]);
+        ctx.lineDashOffset = -time * 20;
+        ctx.beginPath(); ctx.arc(h.x, sy, (h.type === 'camp' ? 44 : h.r + 12), 0, 7); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+      }
+    }
+  }
+
+  // ================= DRAW: CLIMBER =================
+  function limb(ax, ay, bx, by, cx, cy, col, w) {
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = w + 5;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke();
+  }
+  function drawRope() {
+    var hx = climber.x, hy = climber.y + 60 - camY, ax = W / 2, ay = lastCampY - camY + 4;
+    if (state === 'ready') return;
+    var midx = (hx + ax) / 2 + Math.sin(time * 1.3) * 26 + 30, midy = (hy + ay) / 2 + 40;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(midx, midy, ax, ay); ctx.stroke();
+    ctx.strokeStyle = '#e8553a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(midx, midy, ax, ay); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,240,200,0.6)'; ctx.lineWidth = 1; ctx.setLineDash([3, 7]);
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(midx, midy, ax, ay); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  function drawClimber(night) {
+    var sx = climber.x, sy = climber.y - camY, j = climber.jump;
+    ctx.save();
+    ctx.translate(sx, sy);
+    var falling = state === 'falling' || state === 'dead';
+    if (falling) { ctx.translate(0, 50); ctx.rotate(climber.rot); ctx.translate(0, -50); }
+    var bob = j || falling ? 0 : Math.sin(time * 3) * 1.5;
+    var sw = j || falling ? 0 : Math.sin(time * 2.2);
+    var lean = j ? clamp((j.to.x - j.from.x) / 220, -1, 1) * 0.22 : sw * 0.04;
+    ctx.rotate(lean);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // legs
+    var pants = '#26365e';
+    if (j || falling) {
+      limb(-5, 62, -14, 74, -8, 90, pants, 8);
+      limb(5, 62, 15, 72, 18, 86, pants, 8);
+    } else {
+      limb(-5, 62 + bob, -9 + sw * 2, 76 + bob, -10 + sw * 4, 92, pants, 8);
+      limb(5, 62 + bob, 10 - sw * 2, 76 + bob, 9 - sw * 3, 90, pants, 8);
+    }
+    ctx.fillStyle = '#3a2a1f'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2;
+    // arms
+    var jacket = '#2d7dd2';
+    var hl = { x: -12, y: 3 }, hr = { x: 12, y: 3 };
+    if (j) { var a = Math.atan2(j.to.y - climber.y, j.to.x - climber.x); hr = { x: 8 + Math.cos(a) * 18, y: 14 + Math.sin(a) * 22 }; hl = { x: -8 + Math.cos(a) * 8, y: 18 + Math.sin(a) * 12 }; }
+    if (falling) { hr = { x: 22, y: 20 }; hl = { x: -22, y: 22 }; }
+    limb(-9, 42 + bob, (-9 + hl.x) / 2 - 4, (42 + hl.y) / 2 + bob, hl.x, hl.y, jacket, 7);
+    limb(9, 42 + bob, (9 + hr.x) / 2 + 4, (42 + hr.y) / 2 + bob, hr.x, hr.y, jacket, 7);
+    ctx.fillStyle = '#f0c8a0'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hl.x, hl.y, 5, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hr.x, hr.y, 5, 0, 7); ctx.fill(); ctx.stroke();
+    // torso + harness
+    ctx.fillStyle = jacket; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3;
+    rrect(-13, 36 + bob, 26, 34, 9); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#17110c'; ctx.fillRect(-13, 58 + bob, 26, 5);
+    ctx.fillStyle = '#c0c6cf'; ctx.beginPath(); ctx.arc(0, 61 + bob, 3, 0, 7); ctx.fill();
+    // backpack (we see the climber's back)
+    ctx.fillStyle = '#f2a541'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3;
+    rrect(-10, 38 + bob, 20, 20, 6); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#e8553a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 46 + bob, 5, 0, 7); ctx.stroke();
+    // head + helmet
+    ctx.fillStyle = '#5a3b26'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 28 + bob, 10, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffcf4d';
+    ctx.beginPath(); ctx.arc(0, 26 + bob, 11.5, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.ellipse(-4, 20 + bob, 4, 2, -0.4, 0, 7); ctx.fill();
+    if (night > 0.15) { ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(0, 17 + bob, 3, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+  function drawHeadlamp(night) {
+    if (night <= 0.05 || state === 'ready') return;
+    var sx = climber.x, sy = climber.y - camY;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    var g = ctx.createRadialGradient(sx, sy - 10, 8, sx, sy - 40, 190);
+    g.addColorStop(0, 'rgba(255,220,150,' + 0.28 * night + ')'); g.addColorStop(1, 'rgba(255,220,150,0)');
+    ctx.fillStyle = g; ctx.fillRect(sx - 200, sy - 240, 400, 400);
+    ctx.restore();
+  }
+
+  // ================= DRAW: ROCKS & WARNINGS =================
+  function drawRock(r) {
+    var sy = r.y - camY;
+    ctx.save();
+    ctx.translate(r.x, sy);
+    var tg = ctx.createLinearGradient(0, -r.r * 5, 0, 0);
+    tg.addColorStop(0, 'rgba(255,255,255,0)'); tg.addColorStop(1, 'rgba(255,255,255,0.35)');
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.moveTo(-r.r * 0.8, 0); ctx.lineTo(0, -r.r * 5); ctx.lineTo(r.r * 0.8, 0); ctx.closePath(); ctx.fill();
+    ctx.rotate(r.rot);
+    var g = ctx.createRadialGradient(-r.r * 0.35, -r.r * 0.35, 2, 0, 0, r.r * 1.2);
+    g.addColorStop(0, '#6a6a74'); g.addColorStop(1, '#1b1b20');
+    ctx.fillStyle = g; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    for (var i = 0; i < r.pts.length; i++) {
+      var a = i / r.pts.length * Math.PI * 2, rad = r.r * r.pts[i];
+      if (i === 0) ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad); else ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-r.r * 0.4, -r.r * 0.3); ctx.lineTo(r.r * 0.1, r.r * 0.2); ctx.lineTo(r.r * 0.4, -r.r * 0.1); ctx.stroke();
+    ctx.restore();
+  }
+  function drawWarnLanes() {
+    for (var i = 0; i < warns.length; i++) {
+      var w = warns[i], p = w.t / w.dur;
+      var g = ctx.createLinearGradient(0, 120, 0, H);
+      g.addColorStop(0, 'rgba(255,80,60,' + (0.1 + p * 0.18) + ')'); g.addColorStop(1, 'rgba(255,80,60,0)');
+      ctx.fillStyle = g; ctx.fillRect(w.x - 22, 120, 44, H - 120);
+    }
+  }
+  function drawWarns() {
+    for (var i = 0; i < warns.length; i++) {
+      var w = warns[i], pulse = 1 + 0.18 * Math.sin(frame * 0.5);
+      ctx.save();
+      ctx.translate(w.x, 112);
+      ctx.scale(pulse, pulse);
+      ctx.fillStyle = '#ffd24d'; ctx.strokeStyle = '#17110c'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(26, 20); ctx.lineTo(-26, 20); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#17110c'; ctx.fillRect(-3, -10, 6, 18); ctx.beginPath(); ctx.arc(0, 14, 3.4, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ================= DRAW: HUD & PANELS =================
+  function pill(x, y, w, h, fill) {
+    ctx.fillStyle = fill; rrect(x, y, w, h, h / 2); ctx.fill();
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  function drawHUD() {
+    if (state === 'ready') return;
+    pill(8, 8, 196, 42, 'rgba(22,15,10,0.82)');
+    txt('SCORE ' + score, 22, 39, 28, '#fff3d6', 'left');
+    pill(W / 2 - 30, 8, 72, 42, '#ffcf4d');
+    txt('x' + mult, W / 2 + 6, 40, 30, '#17110c', 'center');
+    pill(W - 120, 8, 112, 42, 'rgba(22,15,10,0.82)');
+    var alt = Math.max(0, Math.round(-climber.y / M));
+    txt(alt + ' m', W - 22, 39, 28, '#ffe08a', 'right');
+    var frac = clamp((lastCampY - bestY) / CAMP_GAP, 0, 1);
+    pill(8, 56, W - 16, 26, 'rgba(22,15,10,0.78)');
+    ctx.fillStyle = 'rgba(255,255,255,0.18)'; rrect(20, 64, 220, 10, 5); ctx.fill();
+    ctx.fillStyle = '#ffcf4d'; rrect(20, 64, Math.max(10, 220 * frac), 10, 5); ctx.fill();
+    txt('NEXT CAMP', 250, 75, 16, '#fff3d6', 'left');
+    txt('BANKED ' + bank, W - 22, 75, 16, '#a7e8a0', 'right');
+    if (state === 'play' && bestY === 0 && hintT < 6) txt('TAP A RING-MARKED ROCK', W / 2, 170, 28, '#ffffff', 'center', '#17110c');
+  }
+  function drawPopups() {
+    for (var i = 0; i < popups.length; i++) {
+      var p = popups[i];
+      ctx.globalAlpha = Math.max(0, 1 - p.t / 0.9);
+      var s = 1 + Math.max(0, 0.3 - p.t) * 1.5;
+      txt(p.text, p.x, p.y - camY, 28 * s, p.color, 'left', '#17110c');
+    }
+    ctx.globalAlpha = 1;
+    for (var f = 0; f < flashes.length; f++) {
+      var fl = flashes[f], fy = fl.y - camY;
+      ctx.globalAlpha = 1 - fl.t / 0.35;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(fl.x - 14, fy - 14); ctx.lineTo(fl.x + 14, fy + 14); ctx.moveTo(fl.x + 14, fy - 14); ctx.lineTo(fl.x - 14, fy + 14); ctx.stroke();
+      txt(fl.label || 'TOO FAR', fl.x, fy - 26, 20, '#ffffff', 'center', '#17110c');
+    }
+    ctx.globalAlpha = 1;
+  }
+  function button(x, y, w, h, label, sub, fill) {
+    var pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; rrect(x, y + 6, w, h, 20); ctx.fill();
+    ctx.fillStyle = fill; rrect(x, y, w, h, 20); ctx.fill();
+    ctx.strokeStyle = '#17110c'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,224,138,' + (0.5 + pulse * 0.5) + ')'; ctx.lineWidth = 2.5; rrect(x + 5, y + 5, w - 10, h - 10, 15); ctx.stroke();
+    txt(label, x + w / 2, y + 48, 42, '#ffffff', 'center', '#17110c');
+    txt(sub, x + w / 2, y + 80, 20, '#fff3d6', 'center');
+  }
+  function shade(a) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(12,8,6,' + a + ')'); g.addColorStop(0.5, 'rgba(12,8,6,' + (a * 0.8) + ')'); g.addColorStop(1, 'rgba(12,8,6,' + a + ')');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  function title(str, x, y, size, col, phase) {
+    ctx.save();
+    ctx.translate(x, y + Math.sin(time * 2.2 + phase) * 4);
+    ctx.rotate(Math.sin(time * 1.6 + phase) * 0.025);
+    txt(str, 4, 6, size, '#17110c', 'center');
+    txt(str, 0, 0, size, col, 'center', '#17110c');
+    ctx.restore();
+  }
+  function statusLine() {
+    if (!prof || !prof.name) return { t: 'Pick a nickname to post your haul worldwide', c: '#ffe08a' };
+    if (submitStatus === 'sending') return { t: 'Posting to the world leaderboard...', c: '#fff3d6' };
+    if (submitStatus === 'ranked') return { t: lastRank ? 'World rank #' + lastRank + ' as ' + prof.name : 'Posted as ' + prof.name, c: '#ffcf4d' };
+    if (submitStatus === 'badkey') return { t: 'Profile key rejected. Restore it in Profile.', c: '#ff9f80' };
+    if (submitStatus === 'offline') return { t: 'Offline. Will post when you reconnect.', c: '#ff9f80' };
+    return { t: '', c: '#fff' };
+  }
+  function drawPanels() {
+    var since = nowFn() - endAt;
+    if (state === 'ready') {
+      shade(0.62);
+      title('VERTICAL', W / 2, 180, 88, '#ffcf4d', 0);
+      title('LIMIT', W / 2, 262, 88, '#ffffff', 1.2);
+      txt('Tap a rock to climb to it.', W / 2, 346, 28, '#fff3d6', 'center', '#17110c');
+      txt('Dodge the falling stones.', W / 2, 382, 28, '#fff3d6', 'center', '#17110c');
+      txt('At base camp, cash out to keep your', W / 2, 432, 24, '#ffe08a', 'center', '#17110c');
+      txt('points, or climb on and risk them all.', W / 2, 464, 24, '#ffe08a', 'center', '#17110c');
+      if (bank > 0) txt('Banked ' + bank + '   Best haul ' + bestCash, W / 2, 508, 22, '#a7e8a0', 'center', '#17110c');
+      ctx.fillStyle = 'rgba(22,15,10,0.78)'; rrect(60, 530, W - 120, 150, 18); ctx.fill();
+      ctx.strokeStyle = '#ffcf4d'; ctx.lineWidth = 3; ctx.stroke();
+      txt('WORLD TOP CLIMBERS', W / 2, 562, 24, '#ffcf4d', 'center');
+      if (!board.loaded) txt(board.err ? 'Leaderboard offline' : 'Loading...', W / 2, 610, 20, '#fff3d6', 'center');
+      else if (!board.entries.length) txt('No climbers yet. Be the first!', W / 2, 610, 20, '#fff3d6', 'center');
+      else for (var i = 0; i < Math.min(3, board.entries.length); i++) {
+        var e = board.entries[i], ly = 596 + i * 30;
+        var me = prof && e.id === prof.id;
+        txt('#' + e.rank, 84, ly, 22, ['#ffd84d', '#d9e2ea', '#e3a46b'][i], 'left');
+        txt(e.name.length > 14 ? e.name.slice(0, 13) + '.' : e.name, 128, ly, 22, me ? '#ffcf4d' : '#fff3d6', 'left');
+        txt(String(e.best), W - 84, ly, 22, '#a7e8a0', 'right');
+      }
+      var p = 1 + Math.sin(time * 4) * 0.05;
+      ctx.save(); ctx.translate(W / 2, 742); ctx.scale(p, p);
+      txt('Tap to start', 0, 0, 48, '#ffffff', 'center', '#17110c');
+      ctx.restore();
+    } else if (state === 'camp') {
+      shade(0.78);
+      title('BASE CAMP ' + campsReached, W / 2, 184, 62, '#ffcf4d', 0);
+      txt('You are carrying ' + score + ' points', W / 2, 258, 32, '#fff3d6', 'center', '#17110c');
+      txt('Cash out and they are banked for good.', W / 2, 318, 24, '#a7e8a0', 'center');
+      txt('Climb on and every rock is worth x' + (mult + 1) + ',', W / 2, 358, 24, '#ffe08a', 'center');
+      txt('but fall and you lose all ' + score + '.', W / 2, 390, 24, '#ffb3a8', 'center');
+      button(40, 430, 400, 100, 'CASH OUT', 'Bank ' + score + ' & post to leaderboard', '#2f6f4f');
+      button(40, 550, 400, 100, 'CLIMB ON', 'Points x' + (mult + 1) + ', but risk it all', '#a8481f');
+    } else if (state === 'dead') {
+      var a = clamp((since) / 300, 0, 1);
+      ctx.globalAlpha = a;
+      shade(0.8);
+      title('YOU FELL!', W / 2, 250, 84, '#ff8a6a', 0);
+      txt('A rock got you at ' + fallAlt + ' m.', W / 2, 322, 30, '#fff3d6', 'center');
+      txt('You lost ' + lostScore + ' points.', W / 2, 382, 42, '#ffe08a', 'center', '#17110c');
+      txt('Banked so far: ' + bank, W / 2, 440, 28, '#a7e8a0', 'center');
+      if (since > 500) txt('Tap to climb again', W / 2, 580, 46, '#ffffff', 'center', '#17110c');
+      ctx.globalAlpha = 1;
+    } else if (state === 'cashed') {
+      shade(0.78);
+      title('SAFE!', W / 2, 240, 96, '#a7e8a0', 0);
+      txt('You banked ' + savedScore + ' points.', W / 2, 314, 38, '#fff3d6', 'center', '#17110c');
+      txt(newBest ? 'NEW BEST HAUL!' : 'Best haul ' + bestCash, W / 2, 374, 34, newBest ? '#ffcf4d' : '#ffe08a', 'center', '#17110c');
+      txt('Total banked: ' + bank, W / 2, 428, 30, '#a7e8a0', 'center');
+      var sl = statusLine();
+      txt(sl.t, W / 2, 490, 22, sl.c, 'center', '#17110c');
+      if (since > 500) txt('Tap to climb again', W / 2, 590, 46, '#ffffff', 'center', '#17110c');
+    }
+  }
+
+  function draw() {
+    var alt = visAlt(), sky = skyAt(alt), night = nightness(alt);
+    ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    if (shake > 0) ctx.translate(rnd(-shake, shake) * 0.5, rnd(-shake, shake) * 0.5);
+    drawSky(alt, sky, night);
+    drawBackdrop(alt, sky, night);
+    drawWall(alt, sky, night);
+    if (state === 'play') drawWarnLanes();
+    for (var i = 0; i < holds.length; i++) drawHold(holds[i], night);
+    if (state === 'play') drawReach();
+    drawRope();
+    for (var w = 0; w < rocks.length; w++) drawRock(rocks[w]);
+    drawClimber(night);
+    drawParts();
+    if (night > 0) { ctx.fillStyle = 'rgba(4,6,24,' + (0.28 * night) + ')'; ctx.fillRect(-20, -20, W + 40, H + 40); }
+    drawHeadlamp(night);
+    drawSnow();
+    ctx.drawImage(vignette, 0, 0, W, H);
+    drawWarns();
+    drawPopups();
+    drawHUD();
+    drawPanels();
+  }
+
+  // ================= LEADERBOARD & PROFILE =================
+  var prof = lsJSON('vl_profile', null);
+  if (prof && !(/^[a-f0-9]{12}$/.test(prof.id) && /^[a-f0-9]{24}$/.test(prof.secret))) prof = null;
+  var board = { entries: [], loaded: false, err: null };
+  var submitStatus = '', lastRank = null, flushing = false, myRemote = null;
+
+  function hex(n) {
+    var a = new Uint8Array(n), c = window.crypto || window.msCrypto;
+    if (c && c.getRandomValues) c.getRandomValues(a); else for (var i = 0; i < n; i++) a[i] = Math.floor(Math.random() * 256);
+    var s = ''; for (var k = 0; k < n; k++) s += ('0' + a[k].toString(16)).slice(-2);
+    return s;
+  }
+  function saveProf() { lsSet('vl_profile', JSON.stringify(prof)); }
+  function codeOf(p) { return 'VL-' + p.id + '-' + p.secret; }
+  function parseCode(s) {
+    var m = /VL-([a-f0-9]{12})-([a-f0-9]{24})/i.exec(String(s || ''));
+    return m ? { id: m[1].toLowerCase(), secret: m[2].toLowerCase() } : null;
+  }
+  function cleanName(n) { return String(n || '').replace(/[<>"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16); }
+  function apiCall(path, body) {
+    var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' } : { cache: 'no-store' };
+    return fetch(API + path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) { var e = new Error(j.error || j.detail || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+        return j;
+      });
+    });
+  }
+  function fetchBoard() {
+    return apiCall('?limit=25').then(function (res) {
+      board.entries = res.entries || []; board.loaded = true; board.err = null; return board;
+    }).catch(function (e) { board.err = e; board.loaded = board.entries.length > 0; return board; });
+  }
+  function queue() { return lsJSON('vl_pending', []); }
+  function setQueue(q) { lsSet('vl_pending', JSON.stringify(q.slice(-20))); }
+  function queueSum(q) { var s = 0; for (var i = 0; i < q.length; i++) s += q[i].haul; return s; }
+  function applyRemote(res, q) {
+    myRemote = res;
+    var maxQ = 0; for (var i = 0; i < q.length; i++) maxQ = Math.max(maxQ, q[i].haul);
+    bank = res.bank + queueSum(q);
+    bestCash = Math.max(res.best, maxQ);
+    if (res.name) prof.name = res.name;
+    saveProf(); saveLocal();
+  }
+  function queueHaul(haul, alt) {
+    if (haul <= 0) return;
+    var q = queue(); q.push({ haul: haul, alt: alt }); setQueue(q);
+    submitStatus = prof && prof.name ? 'sending' : '';
+    lastRank = null;
+    if (!prof || !prof.name) setTimeout(function () { if (state === 'cashed' && !modalOpen) openNamePrompt(); }, 900);
+    else flushPending();
+  }
+  function flushPending() {
+    if (flushing || !prof || !prof.name) return Promise.resolve();
+    var q = queue();
+    if (!q.length) return Promise.resolve();
+    flushing = true; submitStatus = 'sending';
+    var item = q[0];
+    return apiCall('/submit', { id: prof.id, secret: prof.secret, name: prof.name, haul: item.haul, alt: item.alt, legacy_bank: Math.max(0, bank - queueSum(q)), legacy_best: bestCash })
+      .then(function (res) {
+        var q2 = queue(); q2.shift(); setQueue(q2);
+        applyRemote(res, q2);
+        lastRank = res.rank; submitStatus = 'ranked'; flushing = false;
+        if (q2.length) return flushPending();
+        return fetchBoard();
+      })
+      .catch(function (e) { flushing = false; submitStatus = e.status === 403 ? 'badkey' : 'offline'; });
+  }
+  function saveName(name) {
+    name = cleanName(name);
+    if (name.length < 2) return Promise.reject(new Error('Nickname needs 2 to 16 characters.'));
+    if (!prof) prof = { id: hex(6), secret: hex(12), name: '' };
+    var old = prof.name;
+    prof.name = name; saveProf();
+    var q = queue();
+    if (q.length) return flushPending().then(function () { if (submitStatus === 'badkey') throw new Error('Profile key rejected.'); });
+    return apiCall('/profile', { id: prof.id, secret: prof.secret, name: name, legacy_bank: bank, legacy_best: bestCash })
+      .then(function (res) { applyRemote(res, []); lastRank = res.rank; return fetchBoard(); })
+      .catch(function (e) { if (e.status === 400 || e.status === 403) { prof.name = old; saveProf(); } throw e; });
+  }
+  function restore(code) {
+    var c = parseCode(code);
+    if (!c) return Promise.reject(new Error('That does not look like a recovery code (VL-xxxx-xxxx).'));
+    return apiCall('/profile', { id: c.id, secret: c.secret }).then(function (res) {
+      prof = { id: c.id, secret: c.secret, name: res.name };
+      applyRemote(res, queue());
+      lastRank = res.rank;
+      flushPending();
+      fetchBoard();
+      return res;
+    }).catch(function (e) {
+      if (e.status === 404) throw new Error('No climber found for that code.');
+      if (e.status === 403) throw new Error('That code is not valid.');
+      throw e;
+    });
+  }
+
+  // ---------- modal UI ----------
+  var modalBack = document.getElementById('modal-back'), modalBox = document.getElementById('modal');
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function openModal(html) { modalBox.innerHTML = html; modalBack.classList.add('open'); modalOpen = true; var f = modalBox.querySelector('input'); if (f && window.innerWidth > 700) f.focus(); }
+  function closeModal() { modalBack.classList.remove('open'); modalOpen = false; modalBox.innerHTML = ''; cv.focus && cv.focus(); }
+  function setMsg(text, ok) { var m = modalBox.querySelector('.msg'); if (m) { m.textContent = text; m.className = 'msg ' + (ok ? 'ok' : 'err'); } }
+  modalBack.addEventListener('pointerdown', function (e) { if (e.target === modalBack) closeModal(); });
+
+  function boardRows() {
+    if (!board.loaded) return '<li class="empty">' + (board.err ? 'Leaderboard is offline right now.' : 'Loading...') + '</li>';
+    if (!board.entries.length) return '<li class="empty">No climbers yet. Cash out to claim #1!</li>';
+    var html = '', mine = false;
+    board.entries.forEach(function (e, i) {
+      var me = prof && e.id === prof.id; if (me) mine = true;
+      html += '<li class="' + (me ? 'me' : '') + '" style="animation-delay:' + (i * 0.03) + 's" data-testid="leaderboard-row-' + e.rank + '"><span class="rk">#' + e.rank + '</span><span class="nm">' + esc(e.name) + (me ? ' (you)' : '') + '<span class="sub">reached ' + e.alt + ' m</span></span><span class="pts">' + e.best + '</span></li>';
+    });
+    if (!mine && myRemote && myRemote.rank) html += '<li class="me"><span class="rk">#' + myRemote.rank + '</span><span class="nm">' + esc(prof.name) + ' (you)</span><span class="pts">' + myRemote.best + '</span></li>';
+    return html;
+  }
+  function openBoard() {
+    SFX.click();
+    openModal('<h2>World Leaderboard</h2><p class="muted">Best single haul cashed out at base camp. Shared by every climber, on every browser.</p><ol class="lb" id="lb-list" data-testid="leaderboard-list">' + boardRows() + '</ol><div class="row"><button class="btn" data-act="profile" data-testid="lb-profile-btn">My profile</button><button class="btn ghost" data-act="refresh" data-testid="lb-refresh-btn">Refresh</button><button class="btn ghost" data-act="close" data-testid="modal-close-btn">Close</button></div>');
+    refreshBoardUI();
+  }
+  function refreshBoardUI() {
+    var p = prof && prof.name ? apiCall('/profile', { id: prof.id, secret: prof.secret }).then(function (r) { myRemote = r; }).catch(function () {}) : Promise.resolve();
+    Promise.all([fetchBoard(), p]).then(function () { var l = document.getElementById('lb-list'); if (l) l.innerHTML = boardRows(); });
+  }
+  function restoreBlock() {
+    return '<hr><h3>Playing on another browser?</h3><p class="muted">Paste the recovery code from your other device to load your climber, banked points and best haul.</p><input class="field" id="f-restore" placeholder="VL-xxxxxxxxxxxx-xxxxxxxx..." autocomplete="off" autocapitalize="off" spellcheck="false" data-testid="restore-code-input"><div class="row"><button class="btn mint" data-act="restore" data-testid="restore-code-btn">Restore climber</button></div>';
+  }
+  function openProfile() {
+    SFX.click();
+    if (!prof || !prof.name) {
+      openModal('<h2>Your Climber</h2><p class="muted">Pick a nickname once. It is saved in this browser along with a secret key, so your row on the leaderboard stays yours.</p><input class="field" id="f-name" maxlength="16" placeholder="Nickname" data-testid="nickname-input"><div class="row"><button class="btn" data-act="save-name" data-testid="save-nickname-btn">Save nickname</button><button class="btn ghost" data-act="close" data-testid="modal-close-btn">Close</button></div><div class="msg"></div>' + restoreBlock());
+      return;
+    }
+    var code = codeOf(prof);
+    var r = myRemote || {};
+    openModal('<h2 data-testid="profile-name">' + esc(prof.name) + '</h2><div class="stats"><div><b data-testid="profile-best">' + bestCash + '</b><span>Best haul</span></div><div><b data-testid="profile-bank">' + bank + '</b><span>Banked</span></div><div><b data-testid="profile-rank">' + (r.rank ? '#' + r.rank : '-') + '</b><span>World rank</span></div></div><h3>Change nickname</h3><input class="field" id="f-name" maxlength="16" value="' + esc(prof.name) + '" data-testid="nickname-input"><div class="row"><button class="btn" data-act="save-name" data-testid="save-nickname-btn">Save</button><button class="btn ghost" data-act="close" data-testid="modal-close-btn">Close</button></div><div class="msg"></div><hr><h3>Your recovery code</h3><p class="muted">Use this to load your climber in any other browser or device. Keep it private: anyone with it can play as you.</p><div class="code" data-testid="recovery-code">' + code + '</div><div class="row"><button class="btn ghost" data-act="copy-code" data-testid="copy-code-btn">Copy code</button><button class="btn ghost" data-act="copy-link" data-testid="copy-link-btn">Copy magic link</button></div>' + restoreBlock());
+    apiCall('/profile', { id: prof.id, secret: prof.secret }).then(function (res) {
+      applyRemote(res, queue());
+      var rk = modalBox.querySelector('[data-testid="profile-rank"]'), bb = modalBox.querySelector('[data-testid="profile-bank"]'), bs = modalBox.querySelector('[data-testid="profile-best"]');
+      if (rk) rk.textContent = res.rank ? '#' + res.rank : '-';
+      if (bb) bb.textContent = bank;
+      if (bs) bs.textContent = bestCash;
+    }).catch(function () {});
+  }
+  function openNamePrompt() {
+    openModal('<h2>Claim your spot!</h2><p class="muted">You banked <b style="color:#a7e8a0">' + savedScore + '</b>. Pick a nickname to post it on the world leaderboard.</p><input class="field" id="f-name" maxlength="16" placeholder="Nickname" data-testid="nickname-input"><div class="row"><button class="btn" data-act="save-name" data-testid="save-nickname-btn">Post my haul</button><button class="btn ghost" data-act="close" data-testid="skip-nickname-btn">Not now</button></div><div class="msg"></div><p class="muted">Already climbed on another browser? <a href="#" data-act="profile" style="color:#ffcf4d">Restore with your code</a>.</p>');
+  }
+  function copyText(t) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+    return new Promise(function (res, rej) {
+      var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy') ? res() : rej(); } catch (e) { rej(e); }
+      document.body.removeChild(ta);
+    });
+  }
+  modalBox.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!el) return;
+    e.preventDefault();
+    var act = el.getAttribute('data-act');
+    if (act === 'close') { SFX.click(); closeModal(); }
+    else if (act === 'profile') openProfile();
+    else if (act === 'refresh') { SFX.click(); refreshBoardUI(); }
+    else if (act === 'save-name') {
+      var f = document.getElementById('f-name');
+      el.disabled = true;
+      saveName(f ? f.value : '').then(function () {
+        SFX.cash();
+        if (state === 'cashed') closeModal(); else openProfile();
+      }).catch(function (err) { el.disabled = false; setMsg(err.message || 'Could not save. Try again.'); });
+    } else if (act === 'restore') {
+      var rf = document.getElementById('f-restore');
+      el.disabled = true;
+      restore(rf ? rf.value : '').then(function () { SFX.camp(); openProfile(); setMsg('Climber restored. Welcome back!', true); })
+        .catch(function (err) { el.disabled = false; var m = modalBox.querySelectorAll('.msg'); if (!m.length) { rf.insertAdjacentHTML('afterend', '<div class="msg"></div>'); } var all = modalBox.querySelectorAll('.msg'); var last = all[all.length - 1]; last.textContent = err.message || 'Could not restore.'; last.className = 'msg err'; });
+    } else if (act === 'copy-code' || act === 'copy-link') {
+      var t = act === 'copy-code' ? codeOf(prof) : location.origin + location.pathname + '?restore=' + codeOf(prof);
+      copyText(t).then(function () { el.textContent = 'Copied!'; SFX.click(); }, function () { el.textContent = 'Select & copy above'; });
+    }
+  });
+  modalBox.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target || e.target.tagName !== 'INPUT') return;
+    var b = modalBox.querySelector(e.target.id === 'f-restore' ? '[data-act="restore"]' : '[data-act="save-name"]');
+    if (b) b.click();
+  });
+
+  // ---------- bottom bar ----------
+  var bMusic = document.getElementById('b-music'), bSfx = document.getElementById('b-sfx');
+  function syncAudioBtns() {
+    bMusic.textContent = prefs.music ? 'Music on' : 'Music off'; bMusic.classList.toggle('off', !prefs.music);
+    bSfx.textContent = prefs.sfx ? 'SFX on' : 'SFX off'; bSfx.classList.toggle('off', !prefs.sfx);
+  }
+  function toggleMusic() {
+    prefs.music = !prefs.music; lsSet('vl_music', prefs.music ? '1' : '0');
+    if (audio()) mGain.gain.setTargetAtTime(prefs.music ? 0.5 : 0, AC.currentTime, 0.05);
+    syncAudioBtns();
+  }
+  bMusic.addEventListener('click', function () { toggleMusic(); });
+  bSfx.addEventListener('click', function () {
+    prefs.sfx = !prefs.sfx; lsSet('vl_sfx', prefs.sfx ? '1' : '0');
+    if (audio()) sGain.gain.setTargetAtTime(prefs.sfx ? 0.9 : 0, AC.currentTime, 0.05);
+    syncAudioBtns(); SFX.click();
+  });
+  document.getElementById('b-board').addEventListener('click', function () { audio(); openBoard(); });
+  document.getElementById('b-prof').addEventListener('click', function () { audio(); openProfile(); });
+  syncAudioBtns();
+
+  // ---------- boot ----------
+  reset();
+  (function boot() {
+    var m = /[?&]restore=([^&#]+)/.exec(location.search);
+    if (m) {
+      var code = decodeURIComponent(m[1]);
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      restore(code).then(function () { openProfile(); setMsg('Climber restored on this browser!', true); })
+        .catch(function (err) { openProfile(); setMsg(err.message || 'Could not restore.'); });
+    } else if (prof && prof.name) {
+      apiCall('/profile', { id: prof.id, secret: prof.secret }).then(function (res) { applyRemote(res, queue()); }).catch(function () {});
+    }
+    flushPending();
+    fetchBoard();
+    setInterval(function () { if (state === 'ready' && !document.hidden) fetchBoard(); }, 30000);
+  })();
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
+<script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="5a657ac4-32cf-4ffd-92c7-c3ad5a34c1f3" data-app-host="app.netlify.com" data-account-tier="free"></script>
