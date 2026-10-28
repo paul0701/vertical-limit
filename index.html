@@ -1455,15 +1455,18 @@ hr { border: 0; border-top: 2px dashed #3a2e25; margin: 16px 0 4px; }
   }
   function cleanName(n) { return String(n || '').replace(/[<>"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16); }
   function apiCall(path, body) {
-    var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' } : { cache: 'no-store' };
-    return fetch(API + path, opts).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) { var e = new Error(j.error || j.detail || ('HTTP ' + r.status)); e.status = r.status; throw e; }
-        return j;
+    // Routed to the shared account service. The in-game title board reads the
+    // global top; signing in and posting scores are handled by the account
+    // widget (the RANKS button), so the old device-profile writes here are
+    // harmless no-ops that keep the original UI from erroring.
+    if (body) return Promise.resolve({ ok: true, bank: 0, best: 0, name: (body && body.name) || '', rank: null });
+    return fetch('https://agnostic.accounts.agnosticsolutions.co.uk/api/leaderboard?game=vertical-limit&period=all&limit=25', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : { entries: [] }; })
+      .then(function (d) {
+        return { entries: (d.entries || []).map(function (e, i) { return { rank: i + 1, id: e.username, name: e.username, best: e.best, alt: 0 }; }) };
       });
-    });
   }
-  function fetchBoard() {
+function fetchBoard() {
     return apiCall('?limit=25').then(function (res) {
       board.entries = res.entries || []; board.loaded = true; board.err = null; return board;
     }).catch(function (e) { board.err = e; board.loaded = board.entries.length > 0; return board; });
@@ -1672,6 +1675,17 @@ hr { border: 0; border-top: 2px dashed #3a2e25; margin: 16px 0 4px; }
   requestAnimationFrame(loop);
 })();
 </script>
+<script src="/account.js" defer></script>
+<script>(function(){function ready(){if(!window.Account){return setTimeout(ready,50);}
+  var s=document.createElement('style');
+  s.textContent=':root{--acc:#e6b63c;--acc-ink:#1a1206;--acc-panel:#1c130b;--acc-text:#f1e8d8;--acc-font:"Fredoka",system-ui,sans-serif}'
+    +'#b-prof,#b-board{display:none!important}';
+  document.head.appendChild(s);
+  Account.init({game:'vertical-limit',title:'Vertical Limit',apiBase:'https://agnostic.accounts.agnosticsolutions.co.uk'});
+  function best(){try{return Math.max(0,parseInt(localStorage.getItem('verticallimit_best')||'0',10)||0);}catch(e){return 0;}}
+  var last=best();if(last>0)Account.reportBest(last);
+  setInterval(function(){var b=best();if(b>last){last=b;Account.reportBest(b);}},2000);
+}ready();})();</script>
 </body>
 </html>
 <script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="5a657ac4-32cf-4ffd-92c7-c3ad5a34c1f3" data-app-host="app.netlify.com" data-account-tier="free"></script>
