@@ -1460,7 +1460,7 @@ hr { border: 0; border-top: 2px dashed #3a2e25; margin: 16px 0 4px; }
     // widget (the RANKS button), so the old device-profile writes here are
     // harmless no-ops that keep the original UI from erroring.
     if (body) return Promise.resolve({ ok: true, bank: 0, best: 0, name: (body && body.name) || '', rank: null });
-    return fetch('/api/leaderboard?game=vertical-limit&period=all&limit=25', { cache: 'no-store' })
+    return fetch('https://agnostic.accounts.agnosticsolutions.co.uk/api/leaderboard?game=vertical-limit&period=all&limit=25', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : { entries: [] }; })
       .then(function (d) {
         return { entries: (d.entries || []).map(function (e, i) { return { rank: i + 1, id: e.username, name: e.username, best: e.best, alt: 0 }; }) };
@@ -1681,7 +1681,7 @@ function fetchBoard() {
   s.textContent=':root{--acc:#e6b63c;--acc-ink:#1a1206;--acc-panel:#1c130b;--acc-text:#f1e8d8;--acc-font:"Fredoka",system-ui,sans-serif}'
     +'#b-prof,#b-board{display:none!important}';
   document.head.appendChild(s);
-  Account.init({game:'vertical-limit',title:'Vertical Limit'});
+  Account.init({game:'vertical-limit',title:'Vertical Limit',apiBase:'https://agnostic.accounts.agnosticsolutions.co.uk'});
   function best(){try{return Math.max(0,parseInt(localStorage.getItem('verticallimit_best')||'0',10)||0);}catch(e){return 0;}}
   var last=best();if(last>0)Account.reportBest(last);
   setInterval(function(){var b=best();if(b>last){last=b;Account.reportBest(b);}},2000);
