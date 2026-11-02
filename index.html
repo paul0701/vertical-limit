@@ -1460,7 +1460,7 @@ hr { border: 0; border-top: 2px dashed #3a2e25; margin: 16px 0 4px; }
     // global top; signing in and posting scores are handled by the account
     // widget (the RANKS button), so the old device-profile writes here are
     // harmless no-ops that keep the original UI from erroring.
-    if (body) return Promise.resolve({ ok: true, bank: 0, best: 0, name: (body && body.name) || '', rank: null });
+    if (body) return Promise.resolve({ ok: true, local: true, bank: 0, best: 0, name: (body && body.name) || '', rank: null });
     return fetch('https://agnostic.accounts.agnosticsolutions.co.uk/api/leaderboard?game=vertical-limit&period=all&limit=25', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : { entries: [] }; })
       .then(function (d) {
@@ -1477,6 +1477,8 @@ function fetchBoard() {
   function queueSum(q) { var s = 0; for (var i = 0; i < q.length; i++) s += q[i].haul; return s; }
   function applyRemote(res, q) {
     myRemote = res;
+    // The service call is a stand-in (see apiCall), so it knows nothing of this device's bank. Keep it.
+    if (res.local) { if (res.name) prof.name = res.name; saveProf(); saveLocal(); return; }
     var maxQ = 0; for (var i = 0; i < q.length; i++) maxQ = Math.max(maxQ, q[i].haul);
     bank = res.bank + queueSum(q);
     bestCash = Math.max(res.best, maxQ);
